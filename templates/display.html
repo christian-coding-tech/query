@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Queue Display{% endblock %}
+
+{% block content %}
+<section class="display-container">
+  <div class="display-now-serving">
+    <h2>Now Serving</h2>
+    <p id="nowServingName" class="display-name">{{ now_serving.name if now_serving else '—' }}</p>
+    <p id="nowServingId" class="display-id">{% if now_serving %}#{{ now_serving.id }}{% else %}No one{% endif %}</p>
+  </div>
+
+  <div class="display-waiting">
+    <h2>Waiting in Queue</h2>
+    <p id="waitingCount" class="display-count">{{ waiting_count }}</p>
+    <p class="display-label">people</p>
+  </div>
+
+  <div class="display-next">
+    <h2>Next</h2>
+    <p id="nextName" class="display-next-name">{{ next_in_line.name if next_in_line else '—' }}</p>
+    <p id="nextId" class="display-next-id">{% if next_in_line %}#{{ next_in_line.id }}{% else %}&nbsp;{% endif %}</p>
+  </div>
+
+  <div class="display-queue-list">
+    <h2>Queue List</h2>
+    <ol id="queueList" class="display-ol">
+      {% if queue %}
+      {% for item in queue[:10] %}
+      <li>
+        <span class="display-number">#{{ item.id }}</span>
+        <span class="display-queue-name">{{ item.name }}</span>
+      </li>
+      {% endfor %}
+      {% if queue|length > 10 %}
+      <li class="display-more">+{{ queue|length - 10 }} more</li>
+      {% endif %}
+      {% else %}
+      <li class="empty">Queue is empty</li>
+      {% endif %}
+    </ol>
+  </div>
+</section>
+
+{% if mqtt_ws_url %}
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+const mqttUrl = "{{ mqtt_ws_url }}";
+const mqttTopic = "{{ mqtt_topic }}";
+const initialState = {{ queue|tojson }};
+
+function renderQueue(state) {
+  const nowServing = state[0] || null;
+  const next = state.length > 1 ? state[1] : null;
+  document.getElementById("nowServingName").textContent = nowServing ? nowServing.name : "—";
+  document.getElementById("nowServingId").textContent = nowServing ? `#${nowServing.id}` : "No one";
+  document.getElementById("waitingCount").textContent = state.length;
+  document.getElementById("nextName").textContent = next ? next.name : "—";
+  document.getElementById("nextId").textContent = next ? `#${next.id}` : "";
+
+  const list = document.getElementById("queueList");
+  list.innerHTML = "";
+
+  if (!state.length) {
+    const emptyItem = document.createElement("li");
+    emptyItem.className = "empty";
+    emptyItem.textContent = "Queue is empty";
+    list.appendChild(emptyItem);
+    return;
+  }
+
+  const limit = Math.min(state.length, 10);
+  for (let i = 0; i < limit; i += 1) {
+    const item = state[i];
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="display-number">#${item.id}</span><span class="display-queue-name">${item.name}</span>`;
+    list.appendChild(li);
+  }
+
+  if (state.length > 10) {
+    const more = document.createElement("li");
+    more.className = "display-more";
+    more.textContent = `+${state.length - 10} more`;
+    list.appendChild(more);
+  }
+}
+
+function connectMqtt() {
+  const client = mqtt.connect(mqttUrl, { reconnectPeriod: 3000 });
+
+  client.on("connect", () => {
+    client.subscribe(mqttTopic, { qos: 0 });
+  });
+
+  client.on("message", (topic, message) => {
+    if (topic === mqttTopic) {
+      try {
+        const payload = JSON.parse(message.toString());
+        renderQueue(payload.queue || []);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  });
+}
+
+renderQueue(initialState);
+connectMqtt();
+</script>
+{% endif %}
+{% endblock %}

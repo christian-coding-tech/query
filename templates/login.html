@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<section class="login-panel">
+  <h2>Staff Login</h2>
+  <form method="post" class="login-form">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" autocomplete="username" required />
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+    <button type="submit">Login</button>
+  </form>
+  <p class="auth-link">Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a></p>
+</section>
+{% endblock %}

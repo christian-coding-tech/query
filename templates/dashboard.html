@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Queue Dashboard{% endblock %}
+
+{% block content %}
+<section class="dashboard-grid">
+  <article class="dashboard-card">
+    <h2>Queue size</h2>
+    <p>{{ queue|length }}</p>
+    <small>people waiting right now</small>
+  </article>
+  <article class="dashboard-card">
+    <h2>Served total</h2>
+    <p>{{ served_count }}</p>
+    <small>items served since tracking began</small>
+  </article>
+  <article class="dashboard-card">
+    <h2>Next in line</h2>
+    <p>{{ next_item.name if next_item else 'None' }}</p>
+    <small>{{ next_item.created_at if next_item else '' }}</small>
+  </article>
+  <article class="dashboard-card">
+    <h2>Last added</h2>
+    <p>{{ newest.name if newest else 'None' }}</p>
+    <small>{{ newest.created_at if newest else '' }}</small>
+  </article>
+</section>
+
+<section class="controls dashboard-controls">
+  <form method="post" action="{{ url_for('serve') }}">
+    <button type="submit" class="next-button">NEXT QUEUE</button>
+  </form>
+  <form method="post" action="{{ url_for('clear') }}">
+    <button type="submit" class="danger">Clear queue</button>
+  </form>
+</section>
+
+<section class="queue-list">
+  <h2>Recent served items</h2>
+  {% if history %}
+  <ol>
+    {% for item in history[-5:]|reverse %}
+    <li>
+      <strong>{{ item.name }}</strong>
+      <span>id={{ item.id }}</span>
+      <small>served at {{ item.served_at }}</small>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="empty">No served items yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
