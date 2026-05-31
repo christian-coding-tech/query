@@ -1,18 +1,25 @@
 {% extends "base.html" %}
 
-{% block title %}Queue System{% endblock %}
+{% block title %}Queue{% endblock %}
 
 {% block content %}
 <section class="controls">
   <form method="post" class="add-form">
-    <label for="name">Add to queue</label>
-    <input id="name" name="name" type="text" placeholder="Enter name" autocomplete="off" />
-    <button type="submit">Add</button>
+    <label for="name">Add ticket / customer name</label>
+    <input
+      id="name"
+      name="name"
+      type="text"
+      placeholder="Type a name (e.g., John)"
+      autocomplete="off"
+      required
+    />
+    <button type="submit">Add to queue</button>
   </form>
 
   <div class="action-buttons">
     <form method="post" action="{{ url_for('serve') }}">
-      <button type="submit" class="next-button">NEXT QUEUE</button>
+      <button type="submit" class="next-button">Call next</button>
     </form>
     <form method="post" action="{{ url_for('clear') }}">
       <button type="submit" class="danger">Clear queue</button>
@@ -23,17 +30,20 @@
 <section class="queue-list">
   <h2>Current queue</h2>
   {% if queue %}
-  <ol>
+  <ol class="queue-ol">
     {% for item in queue %}
-    <li>
-      <strong>{{ item.name }}</strong>
-      <span>id={{ item.id }}</span>
-      <small>{{ item.created_at }}</small>
+    <li class="queue-item">
+      <div class="queue-main">
+        <strong>{{ item.name }}</strong>
+        <span class="queue-id">#{{ item.id }}</span>
+      </div>
+      <small class="queue-time">Added {{ item.created_at }}</small>
     </li>
     {% endfor %}
   </ol>
   {% else %}
-  <p class="empty">No items in the queue yet.</p>
+  <p class="empty">No tickets in the queue yet.</p>
   {% endif %}
 </section>
 {% endblock %}
+

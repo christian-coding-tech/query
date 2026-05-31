@@ -3,32 +3,50 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}Queue System{% endblock %}</title>
+    <title>{% block title %}Service Queue Manager{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   </head>
   <body>
-    <div class="page">
-      <header>
-        <div class="header-top">
-          <div>
-            <h1>Queue System</h1>
-            <p>Manage your queue with a web interface.</p>
-          </div>
-          <nav class="top-nav">
-            <a href="{{ url_for('index') }}">Home</a>
-            <a href="{{ url_for('dashboard') }}">Dashboard</a>
-            <a href="{{ url_for('display') }}">Display</a>
-            {% if session.get('user') %}
-            <a href="{{ url_for('logout') }}">Logout</a>
-            {% else %}
-            <a href="{{ url_for('login') }}">Login</a>
-            <a href="{{ url_for('signup') }}">Sign Up</a>
-            {% endif %}
-          </nav>
-        </div>
-      </header>
+    <div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
+      <div class="spinner"></div>
+      <span class="sr-only">Loading...</span>
+    </div>
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if session.get('user') %}
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-brand">
+            <span class="brand-title">Queue Manager</span>
+            <span class="brand-subtitle">Service staff</span>
+          </div>
+          <button class="sidebar-toggle" id="sidebarToggle" aria-expanded="true" aria-controls="sidebar" aria-label="Toggle sidebar">
+            <span class="toggle-icon">☰</span>
+          </button>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Sidebar navigation">
+          <a href="{{ url_for('index') }}" class="sidebar-link{% if request.endpoint == 'index' %} active{% endif %}"><span class="nav-icon">⌛</span><span class="link-text">Queue</span></a>
+          <a href="{{ url_for('dashboard') }}" class="sidebar-link{% if request.endpoint == 'dashboard' %} active{% endif %}"><span class="nav-icon">📊</span><span class="link-text">Dashboard</span></a>
+          <a href="{{ url_for('display') }}" class="sidebar-link{% if request.endpoint == 'display' %} active{% endif %}"><span class="nav-icon">📺</span><span class="link-text">Display</span></a>
+          <a href="{{ url_for('logout') }}" class="sidebar-link sidebar-link-logout"><span class="nav-icon">🚪</span><span class="link-text">Logout</span></a>
+        </nav>
+      </aside>
+
+      <main class="content">
+    {% endif %}
+
+        <div class="page">
+        <header>
+          <div class="header-top">
+            <div>
+              <h1>Service Queue Manager</h1>
+              <p>Manage tickets: add, call the next one, and track served history.</p>
+            </div>
+          </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
       <div class="alerts">
         {% for category, message in messages %}
@@ -39,6 +57,54 @@
       {% endwith %}
 
       {% block content %}{% endblock %}
+        </div>
+    {% if session.get('user') %}
+      </main>
     </div>
+    {% endif %}
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const overlay = document.getElementById('loadingOverlay');
+        document.querySelectorAll('form').forEach((form) => {
+          if (form.classList.contains('no-loading')) {
+            return;
+          }
+          form.addEventListener('submit', function () {
+            overlay.classList.add('visible');
+            overlay.setAttribute('aria-hidden', 'false');
+            form.querySelectorAll('button, input, textarea').forEach((el) => {
+              if (el.type !== 'submit') return;
+              el.disabled = true;
+              el.classList.add('loading');
+            });
+          });
+        });
+
+        const sidebar = document.getElementById('sidebar');
+        const toggle = document.getElementById('sidebarToggle');
+        const collapsedKey = 'queueSidebarCollapsed';
+
+        function setSidebarCollapsed(collapsed) {
+          sidebar.classList.toggle('collapsed', collapsed);
+          toggle.setAttribute('aria-expanded', String(!collapsed));
+          localStorage.setItem(collapsedKey, collapsed ? '1' : '0');
+        }
+
+        if (sidebar && toggle) {
+          const saved = localStorage.getItem(collapsedKey);
+          if (saved === '1') {
+            setSidebarCollapsed(true);
+          }
+
+          toggle.addEventListener('click', function () {
+            const collapsed = sidebar.classList.toggle('collapsed');
+            toggle.setAttribute('aria-expanded', String(!collapsed));
+            localStorage.setItem(collapsedKey, collapsed ? '1' : '0');
+          });
+        }
+      });
+    </script>
   </body>
 </html>
+

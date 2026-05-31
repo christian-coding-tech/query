@@ -1,24 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}Queue Dashboard{% endblock %}
+{% block title %}Dashboard{% endblock %}
 
 {% block content %}
 <section class="dashboard-grid">
   <article class="dashboard-card">
     <h2>Queue size</h2>
     <p>{{ queue|length }}</p>
-    <small>people waiting right now</small>
+    <small>waiting now</small>
   </article>
+
   <article class="dashboard-card">
     <h2>Served total</h2>
     <p>{{ served_count }}</p>
-    <small>items served since tracking began</small>
+    <small>tickets served</small>
   </article>
+
   <article class="dashboard-card">
-    <h2>Next in line</h2>
+    <h2>Now next</h2>
     <p>{{ next_item.name if next_item else 'None' }}</p>
     <small>{{ next_item.created_at if next_item else '' }}</small>
   </article>
+
   <article class="dashboard-card">
     <h2>Last added</h2>
     <p>{{ newest.name if newest else 'None' }}</p>
@@ -28,22 +31,45 @@
 
 <section class="controls dashboard-controls">
   <form method="post" action="{{ url_for('serve') }}">
-    <button type="submit" class="next-button">NEXT QUEUE</button>
+    <button type="submit" class="next-button">Call next</button>
   </form>
   <form method="post" action="{{ url_for('clear') }}">
     <button type="submit" class="danger">Clear queue</button>
   </form>
 </section>
 
+<section class="ai-card">
+  <div class="ai-card-header">
+    <h2>AI assistance (optional)</h2>
+    <p class="ai-card-subtitle">Get a short staff suggestion based on the current queue. Works with fallback when no AI key is configured.</p>
+  </div>
+
+  <div class="ai-widget">
+    <form class="ai-form no-loading" id="aiForm">
+      <label for="aiPrompt">What do you want help with?</label>
+      <textarea id="aiPrompt" name="prompt" rows="3" placeholder="Example: A polite way to announce the next ticket." required></textarea>
+
+      <input type="hidden" id="aiContextQueue" value="" />
+
+      <button type="submit" class="ai-button">Get suggestion</button>
+    </form>
+
+    <div class="ai-result" id="aiResult" aria-live="polite"></div>
+    <div class="ai-status" id="aiStatus"></div>
+  </div>
+</section>
+
 <section class="queue-list">
-  <h2>Recent served items</h2>
+  <h2>Recent served tickets</h2>
   {% if history %}
-  <ol>
+  <ol class="queue-ol">
     {% for item in history[-5:]|reverse %}
-    <li>
-      <strong>{{ item.name }}</strong>
-      <span>id={{ item.id }}</span>
-      <small>served at {{ item.served_at }}</small>
+    <li class="queue-item">
+      <div class="queue-main">
+        <strong>{{ item.name }}</strong>
+        <span class="queue-id">#{{ item.id }}</span>
+      </div>
+      <small class="queue-time">Served at {{ item.served_at }}</small>
     </li>
     {% endfor %}
   </ol>
@@ -51,4 +77,64 @@
   <p class="empty">No served items yet.</p>
   {% endif %}
 </section>
+
+<script>
+  (function () {
+    const form = document.getElementById('aiForm');
+    const result = document.getElementById('aiResult');
+    const statusEl = document.getElementById('aiStatus');
+
+    if (!form) return;
+
+    // Pre-fill context in hidden field (so we can include it in the POST body)
+    const queue = {{ queue|tojson }};
+    document.getElementById('aiContextQueue').value = JSON.stringify(queue);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      result.textContent = '';
+      statusEl.textContent = 'Requesting suggestion...';
+
+      const prompt = document.getElementById('aiPrompt').value;
+      const contextQueue = document.getElementById('aiContextQueue').value;
+
+      try {
+        const resp = await fetch('{{ url_for("ai_suggest") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: prompt,
+            context: {
+              queue: JSON.parse(contextQueue || '[]')
+            }
+          })
+        });
+
+        const data = await resp.json();
+        statusEl.textContent = '';
+        if (!resp.ok) {
+          result.textContent = (data && data.error) ? data.error : 'Failed to get suggestion.';
+          return;
+        }
+
+        const suggestion = data.suggestion || '';
+        const meta = data.mode ? `(${data.mode})` : '';
+        result.innerHTML = `<div class="ai-result-text">${escapeHtml(suggestion)} ${meta}</div>`;
+      } catch (err) {
+        statusEl.textContent = '';
+        result.textContent = 'Network/Server error while requesting suggestion.';
+      }
+    });
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '<')
+        .replaceAll('>', '>')
+        .replaceAll('"', '"')
+        .replaceAll("'", '&#039;');
+    }
+  })();
+</script>
 {% endblock %}
+

@@ -1,16 +1,17 @@
-# Queue System (Python + Flask)
+# Queue System (Service Queue + Flask + Optional AI)
 
 This project provides:
 1) A simple **command-line queue manager** (`queue_system.py`) that stores data in `queue_data.json`.
-2) A **web app** (`queue_web.py`) to add/serve/clear queue items and view history.
+2) A **web app** (`queue_web.py`) to add/call/serve/clear tickets and view served history.
 3) Optional **MQTT real-time updates** for the public display screen (`/display` / `/public`).
+4) Optional **AI assistance** on the dashboard (with safe fallback when no AI key is configured).
 
 ---
 
 ## Architecture overview
 
 ### Data files
-- **`queue_data.json`**: current queue items (added/served)
+- **`queue_data.json`**: current queue items (waiting tickets)
 - **`queue_history.json`**: served history (who was served and when)
 - **`users.json`**: staff user accounts (hashed passwords)
 
@@ -24,13 +25,14 @@ This project provides:
   - Uses the functions above to manage queue state.
   - Records served items into `queue_history.json`.
   - Publishes queue updates via MQTT (if configured).
+  - AI route: `POST /ai/suggest`
 
 ### Web pages / routes
 - `/login` (POST/GET): staff login
 - `/signup` (POST/GET): create a staff account
-- `/` : main queue page (add + see queue)
-- `/serve` : serve next item (POST)
-- `/dashboard` : admin dashboard (metrics + history)
+- `/` : main queue page (add + call next)
+- `/serve` : serve the next item (POST)
+- `/dashboard` : staff dashboard (metrics + recent served + AI widget)
 - `/display` : public queue display (optionally live via MQTT)
 - `/public` : public queue display (optionally live via MQTT)
 - `/clear` : clear queue (POST)
@@ -43,6 +45,10 @@ This project provides:
 See `requirements.txt`:
 - Flask
 - paho-mqtt
+
+AI:
+- No AI dependency is required for fallback mode.
+- For OpenAI mode, set `OPENAI_API_KEY` and install `openai` (optional).
 
 ---
 
@@ -87,7 +93,6 @@ python queue_web.py
 - password: `admin`
 
 ### Customizing via environment variables
-You can override the default staff login:
 - `QUEUE_USER`
 - `QUEUE_PASS`
 
@@ -107,13 +112,13 @@ Go to:
 
 ## MQTT real-time updates (optional)
 
-The public display page (`/display` / `/public`) can update live when the queue changes.
+The public display page (`/display` / `/public`) updates live when the queue changes.
 
 ### Server-side MQTT publishing
-`queue_web.py` publishes to `MQTT_TOPIC` whenever the queue changes (serve/add/clear).
+`queue_web.py` publishes to `MQTT_TOPIC` whenever the queue changes.
 
 Set these environment variables before starting `queue_web.py`:
-- `MQTT_BROKER_URL` **(required to enable MQTT publishing)**
+- `MQTT_BROKER_URL` (required to enable MQTT publishing)
 - `MQTT_BROKER_PORT` (default: `1883`)
 - `MQTT_USERNAME` / `MQTT_PASSWORD` (optional)
 - `MQTT_USE_TLS` (`true` / `false`, default: `false`)
@@ -123,29 +128,29 @@ Set these environment variables before starting `queue_web.py`:
 The display page includes a browser MQTT client only when `MQTT_WS_URL` is set.
 
 Set:
-- `MQTT_WS_URL` (required for the browser to subscribe via WebSockets)
-
-**Note:** `MQTT_WS_URL` is separate from `MQTT_BROKER_URL`. It must be a WebSocket-enabled endpoint compatible with the browser MQTT client.
+- `MQTT_WS_URL` (required for the browser MQTT subscription)
 
 ---
 
-## Message format (MQTT payload)
+## AI assistance (optional)
 
-When the server publishes, the payload is JSON:
+The dashboard has an AI widget that sends a request to:
+- `POST /ai/suggest`
 
-```json
-{
-  "now_serving": { "id": 1, "name": "Alice", "created_at": "..." } | null,
-  "queue": [ ... ],
-  "count": 3,
-  "timestamp": "..."
-}
+### Behavior
+- If `OPENAI_API_KEY` is **NOT** set: the system returns a **deterministic fallback** suggestion (no external API calls).
+- If `OPENAI_API_KEY` **is** set: the system attempts an OpenAI call (requires `openai` package).
+
+### How to enable OpenAI mode
+1. Install:
+
+```bash
+pip install openai
 ```
 
-The display page reads `payload.queue` and renders:
-- now serving: `queue[0]`
-- next: `queue[1]`
-- waiting count: `queue.length`
+2. Set environment variables (example):
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` (optional, default: `gpt-3.5-turbo`)
 
 ---
 
@@ -161,7 +166,8 @@ All queue state persists in JSON files in the same directory:
 ## Troubleshooting
 
 - **Web app won’t start**: ensure `Flask` is installed (`pip install -r requirements.txt`).
-- **Login fails**: check `users.json` exists and credentials match; or create a user at `/signup`.
+- **Login fails**: create a staff account at `/signup`.
+- **AI widget fails**: confirm `/ai/suggest` returns JSON; fallback mode should work even without AI keys.
 - **MQTT display not updating**:
   - confirm `MQTT_BROKER_URL` is set (server publishing)
   - confirm `MQTT_WS_URL` is set (browser subscription)
@@ -171,7 +177,7 @@ All queue state persists in JSON files in the same directory:
 
 ## Project files (quick map)
 - `queue_system.py` : CLI queue operations
-- `queue_web.py` : Flask web app
+- `queue_web.py` : Flask web app + AI endpoint
 - `queue_data.json` / `queue_history.json` / `users.json` : persistent storage
 - `templates/` : HTML pages
 - `static/` : CSS
