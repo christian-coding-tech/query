@@ -54,8 +54,11 @@
         <nav class="sidebar-nav" aria-label="Sidebar navigation">
           <a href="{{ url_for('index') }}" class="sidebar-link{% if request.endpoint == 'index' %} active{% endif %}" data-ajax><span class="nav-icon">⌛</span><span class="link-text">Queue</span></a>
           <a href="{{ url_for('dashboard') }}" class="sidebar-link{% if request.endpoint == 'dashboard' %} active{% endif %}" data-ajax><span class="nav-icon">📊</span><span class="link-text">Dashboard</span></a>
+          {% if session.get('role') == 'staff' %}
+          <a href="{{ url_for('create_viewer') }}" class="sidebar-link{% if request.endpoint == 'create_viewer' %} active{% endif %}" data-ajax><span class="nav-icon">👥</span><span class="link-text">Add viewer</span></a>
+          {% endif %}
           <a href="{{ url_for('display') }}" class="sidebar-link{% if request.endpoint == 'display' %} active{% endif %}" data-ajax><span class="nav-icon">📺</span><span class="link-text">Display</span></a>
-          <a href="{{ url_for('logout') }}" class="sidebar-link sidebar-link-logout"><span class="nav-icon">🚪</span><span class="link-text">Logout</span></a>
+          <a href="{{ url_for('logout') }}" class="sidebar-link sidebar-link-logout" data-confirm="Are you sure you want to log out?"><span class="nav-icon">🚪</span><span class="link-text">Logout</span></a>
         </nav>
       </aside>
 
@@ -70,6 +73,12 @@
               <h1>Service Queue Manager</h1>
               <p>Manage tickets: add, call the next one, and track served history.</p>
             </div>
+            {% if session.get('user') %}
+            <div class="header-user">
+              <span class="user-icon" aria-hidden="true">👤</span>
+              <span>{{ session.user }}</span>
+            </div>
+            {% endif %}
           </div>
         </header>
 
@@ -88,6 +97,16 @@
     {% if session.get('user') %}
       </main>
     </div>
+    {% endif %}
+
+    {% if mqtt_ws_url %}
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script>
+      window.mqttConfig = {
+        url: "{{ mqtt_ws_url }}",
+        topic: "{{ mqtt_topic }}"
+      };
+    </script>
     {% endif %}
 
     <script>
@@ -289,11 +308,102 @@
           });
         }
 
+        let mqttClient = null;
+
+        function escapeHtml(value) {
+          return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        window.userRole = "{{ session.get('role', '') }}";
+
+        function renderQueueList(queue) {
+          const pageContext = document.getElementById('pageQueueContext');
+          if (pageContext) {
+            pageContext.dataset.queue = JSON.stringify(queue || []);
+          }
+
+          const section = document.querySelector('.queue-list');
+          if (!section) {
+            return;
+          }
+
+          const isStaff = window.userRole === 'staff';
+          let html = '<h2>Current queue</h2>';
+          if (!queue || !queue.length) {
+            html += '<p class="empty">No tickets in the queue yet.</p>';
+            section.innerHTML = html;
+            return;
+          }
+
+          html += '<ol class="queue-ol">';
+          queue.forEach((item) => {
+            html += `
+              <li class="queue-item">
+                <div class="queue-main">
+                  <div class="queue-title-row">
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <span class="queue-id">#${item.id}</span>
+                    <span class="ticket-badge ${item.priority === 'High' ? 'high' : 'normal'}">${escapeHtml(item.priority)}</span>
+                  </div>
+                  ${item.note ? `<span class="queue-note">${escapeHtml(item.note)}</span>` : ''}
+                  <small class="queue-time">Added ${escapeHtml(item.created_at)}</small>
+                </div>
+                ${isStaff ? `
+                <div class="queue-actions">
+                  <form method="post" action="/ticket/${item.id}/serve" data-confirm="Serve ticket #${item.id}: ${escapeHtml(item.name)}?">
+                    <button type="submit" class="action-small">Serve</button>
+                  </form>
+                  <form method="post" action="/ticket/${item.id}/remove" data-confirm="Remove ticket #${item.id}: ${escapeHtml(item.name)}? This cannot be undone.">
+                    <button type="submit" class="action-small danger">Remove</button>
+                  </form>
+                </div>` : ''}
+              </li>`;
+          });
+          html += '</ol>';
+          section.innerHTML = html;
+          initPageFeatures();
+        }
+
+        function connectQueueMqtt() {
+          if (!window.mqttConfig || !window.mqttConfig.url || !window.mqttConfig.topic) {
+            return;
+          }
+          if (mqttClient || typeof mqtt === 'undefined') {
+            return;
+          }
+
+          mqttClient = mqtt.connect(window.mqttConfig.url, { reconnectPeriod: 3000 });
+
+          mqttClient.on('connect', () => {
+            mqttClient.subscribe(window.mqttConfig.topic, { qos: 0 });
+          });
+
+          mqttClient.on('message', (topic, message) => {
+            if (topic !== window.mqttConfig.topic) {
+              return;
+            }
+            try {
+              const payload = JSON.parse(message.toString());
+              if (Array.isArray(payload.queue)) {
+                renderQueueList(payload.queue);
+              }
+            } catch (error) {
+              console.error('MQTT queue payload parse failed', error);
+            }
+          });
+        }
+
         function initPageFeatures() {
           bindFormSubmitLoading();
           attachConfirmHandlers();
           updateChatQueue();
           initChatWidget();
+          connectQueueMqtt();
         }
 
         initPageFeatures();

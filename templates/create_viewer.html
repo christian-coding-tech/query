@@ -1,19 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}Login{% endblock %}
+{% block title %}Create Viewer Account{% endblock %}
 
 {% block content %}
 <section class="login-panel">
-  <h2>Staff Login</h2>
+  <h2>Create Viewer Account</h2>
   <form method="post" class="login-form">
     <label for="username">Username</label>
     <input id="username" name="username" type="text" autocomplete="username" required />
 
     <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" required />
+    <input id="password" name="password" type="password" autocomplete="new-password" required />
 
-    <button type="submit">Login</button>
+    <button type="submit">Create viewer</button>
   </form>
-  <p class="auth-link">If you do not have an account, ask a staff member to create a viewer account for you.</p>
 </section>
 {% endblock %}

@@ -12,6 +12,7 @@ from queue_system import load_queue, add_to_queue, serve_next, save_queue
 DATA_DIR = os.path.dirname(__file__)
 HISTORY_FILE = os.path.join(DATA_DIR, "queue_history.json")
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
+REQUESTS_FILE = os.path.join(DATA_DIR, "queue_requests.json")
 
 LOGIN_USERNAME = os.environ.get("QUEUE_USER", "admin")
 LOGIN_PASSWORD = os.environ.get("QUEUE_PASS", "admin")
@@ -85,11 +86,26 @@ def publish_queue_update(queue):
     publish_mqtt(MQTT_TOPIC, payload)
 
 
+def normalize_users(users):
+    normalized = {}
+    for username, record in users.items():
+        if isinstance(record, str):
+            normalized[username] = {"password": record, "role": "staff"}
+        elif isinstance(record, dict):
+            normalized[username] = {
+                "password": record.get("password", ""),
+                "role": record.get("role", "staff"),
+            }
+        else:
+            continue
+    return normalized
+
+
 def load_users():
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {LOGIN_USERNAME: generate_password_hash(LOGIN_PASSWORD)}
+            return normalize_users(json.load(f))
+    return {LOGIN_USERNAME: {"password": generate_password_hash(LOGIN_PASSWORD), "role": "staff"}}
 
 
 def save_users(users):
@@ -99,10 +115,34 @@ def save_users(users):
 
 def validate_user(username, password):
     users = load_users()
-    hashed = users.get(username)
-    if not hashed:
-        return False
-    return check_password_hash(hashed, password)
+    user = users.get(username)
+    if user and check_password_hash(user.get("password", ""), password):
+        return True
+    if username == LOGIN_USERNAME and password == LOGIN_PASSWORD:
+        return True
+    return False
+
+
+def get_user_role(username):
+    users = load_users()
+    user = users.get(username)
+    if user:
+        return user.get("role", "staff")
+    if username == LOGIN_USERNAME:
+        return "staff"
+    return None
+
+
+def load_requests():
+    if os.path.exists(REQUESTS_FILE):
+        with open(REQUESTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def save_requests(requests):
+    with open(REQUESTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(requests, f, indent=2)
 
 
 def find_ticket(queue, ticket_id):
@@ -117,6 +157,33 @@ def login_required(view):
         return view(*args, **kwargs)
 
     return wrapped_view
+
+
+def staff_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if session.get("role") != "staff":
+            flash("Staff access only.", "warning")
+            return redirect(url_for("index"))
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
+@app.context_processor
+def inject_mqtt_config():
+    return {
+        "mqtt_ws_url": MQTT_WS_URL,
+        "mqtt_topic": MQTT_TOPIC,
+    }
+
+
+@app.context_processor
+def inject_mqtt_config():
+    return {
+        "mqtt_ws_url": MQTT_WS_URL,
+        "mqtt_topic": MQTT_TOPIC,
+    }
 
 
 def fallback_ai_suggestion(message, context):
@@ -266,31 +333,10 @@ def ai_chat():
         return jsonify({"mode": "fallback", "reply": reply, "error": str(e)}), 200
 
 
-@app.route("/signup", methods=["GET", "POST"])
+@app.route("/signup")
 def signup():
-    if session.get("user"):
-        return redirect(url_for("index"))
-
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "").strip()
-        confirm_password = request.form.get("confirm_password", "").strip()
-
-        if not username or not password:
-            flash("Enter a username and password.", "warning")
-        elif password != confirm_password:
-            flash("Passwords do not match.", "warning")
-        else:
-            users = load_users()
-            if username in users:
-                flash("This username already exists.", "warning")
-            else:
-                users[username] = generate_password_hash(password)
-                save_users(users)
-                flash("Account created. Please login.", "success")
-                return redirect(url_for("login"))
-
-    return render_template("signup.html")
+    flash("Account creation is restricted. Ask a staff member to create a viewer account.", "info")
+    return redirect(url_for("login"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -303,6 +349,7 @@ def login():
         password = request.form.get("password", "").strip()
         if validate_user(username, password):
             session["user"] = username
+            session["role"] = get_user_role(username) or "staff"
             flash("You are now logged in.", "success")
             return redirect(url_for("index"))
         flash("Invalid username or password.", "danger")
@@ -317,27 +364,67 @@ def logout():
     return redirect(url_for("login"))
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/")
 @login_required
 def index():
     queue = load_queue()
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        note = request.form.get("note", "").strip()
-        priority = request.form.get("priority", "Normal")
-        if not name:
-            flash("Please enter a name to add to the queue.", "warning")
-        else:
-            add_to_queue(queue, name, note=note, priority=priority)
-            publish_queue_update(queue)
-            flash(f"Added {name} to the queue.", "success")
-            return redirect(url_for("index"))
+    user_requests = []
+    if session.get("role") == "viewer":
+        requests = load_requests()
+        user_requests = [r for r in requests if r.get("requested_by") == session.get("user")]
+    return render_template("index.html", queue=queue, requests=user_requests)
 
-    return render_template("index.html", queue=queue)
+
+@app.route("/add", methods=["POST"])
+@login_required
+@staff_required
+def add_ticket():
+    queue = load_queue()
+    name = request.form.get("name", "").strip()
+    note = request.form.get("note", "").strip()
+    priority = request.form.get("priority", "Normal")
+    if not name:
+        flash("Please enter a name to add to the queue.", "warning")
+    else:
+        add_to_queue(queue, name, note=note, priority=priority)
+        publish_queue_update(queue)
+        flash(f"Added {name} to the queue.", "success")
+    return redirect(url_for("index"))
+
+
+@app.route("/request", methods=["POST"])
+@login_required
+def request_queue():
+    if session.get("role") != "viewer":
+        flash("Only viewers can request new queue entries.", "warning")
+        return redirect(url_for("index"))
+
+    name = request.form.get("name", "").strip()
+    note = request.form.get("note", "").strip()
+    if not name:
+        flash("Please enter a name to request.", "warning")
+        return redirect(url_for("index"))
+
+    requests = load_requests()
+    request_id = max((r.get("id", 0) for r in requests), default=0) + 1
+    requests.append(
+        {
+            "id": request_id,
+            "name": name,
+            "note": note,
+            "requested_by": session.get("user"),
+            "requested_at": datetime.now().isoformat(timespec="seconds"),
+            "status": "pending",
+        }
+    )
+    save_requests(requests)
+    flash("Your queue request has been sent to staff.", "success")
+    return redirect(url_for("index"))
 
 
 @app.route("/serve", methods=["POST"])
 @login_required
+@staff_required
 def serve():
     queue = load_queue()
     item = serve_next(queue)
@@ -351,6 +438,7 @@ def serve():
 
 @app.route("/ticket/<int:ticket_id>/serve", methods=["POST"])
 @login_required
+@staff_required
 def serve_ticket(ticket_id):
     queue = load_queue()
     item = find_ticket(queue, ticket_id)
@@ -367,6 +455,7 @@ def serve_ticket(ticket_id):
 
 @app.route("/ticket/<int:ticket_id>/remove", methods=["POST"])
 @login_required
+@staff_required
 def remove_ticket(ticket_id):
     queue = load_queue()
     item = find_ticket(queue, ticket_id)
@@ -378,6 +467,74 @@ def remove_ticket(ticket_id):
     else:
         flash("Ticket not found.", "warning")
     return redirect(url_for("index"))
+
+
+@app.route("/viewer/create", methods=["GET", "POST"])
+@login_required
+@staff_required
+def create_viewer():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        if not username or not password:
+            flash("Username and password are required.", "warning")
+            return redirect(url_for("create_viewer"))
+
+        users = load_users()
+        if username in users:
+            flash("This username already exists.", "warning")
+            return redirect(url_for("create_viewer"))
+
+        users[username] = {"password": generate_password_hash(password), "role": "viewer"}
+        save_users(users)
+        flash("Viewer account created.", "success")
+        return redirect(url_for("dashboard"))
+
+    return render_template("create_viewer.html")
+
+
+@app.route("/request/<int:request_id>/accept", methods=["POST"])
+@login_required
+@staff_required
+def accept_request(request_id):
+    requests = load_requests()
+    queued = load_queue()
+    request_item = next((r for r in requests if r.get("id") == request_id), None)
+    if not request_item:
+        flash("Request not found.", "warning")
+        return redirect(url_for("dashboard"))
+
+    if request_item.get("status") != "pending":
+        flash("Request has already been handled.", "info")
+        return redirect(url_for("dashboard"))
+
+    add_to_queue(queued, request_item.get("name"), note=request_item.get("note", ""), priority="Normal")
+    save_queue(queued)
+    publish_queue_update(queued)
+    request_item["status"] = "accepted"
+    save_requests(requests)
+    flash(f"Accepted request #{request_id} and added it to the queue.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/request/<int:request_id>/reject", methods=["POST"])
+@login_required
+@staff_required
+def reject_request(request_id):
+    requests = load_requests()
+    request_item = next((r for r in requests if r.get("id") == request_id), None)
+    if not request_item:
+        flash("Request not found.", "warning")
+        return redirect(url_for("dashboard"))
+
+    if request_item.get("status") != "pending":
+        flash("Request has already been handled.", "info")
+        return redirect(url_for("dashboard"))
+
+    request_item["status"] = "rejected"
+    save_requests(requests)
+    flash(f"Rejected request #{request_id}.", "info")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/dashboard")
@@ -396,6 +553,8 @@ def dashboard():
 
     average_wait = f"{round(sum(wait_minutes) / len(wait_minutes), 1)} min" if wait_minutes else "N/A"
     high_priority = sum(1 for item in queue if item.get("priority") == "High")
+    requests = load_requests()
+    pending_requests = [r for r in requests if r.get("status") == "pending"]
 
     return render_template(
         "dashboard.html",
@@ -406,6 +565,7 @@ def dashboard():
         newest=queue[-1] if queue else None,
         average_wait=average_wait,
         high_priority=high_priority,
+        pending_requests=pending_requests,
     )
 
 

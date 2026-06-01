@@ -3,8 +3,9 @@
 {% block title %}Queue{% endblock %}
 
 {% block content %}
+{% if session.get('role') == 'staff' %}
 <section class="controls">
-  <form method="post" class="add-form">
+  <form method="post" action="{{ url_for('add_ticket') }}" class="add-form">
     <label for="name">Add ticket / customer name</label>
     <input
       id="name"
@@ -41,6 +42,31 @@
     </form>
   </div>
 </section>
+{% else %}
+<section class="controls">
+  <form method="post" action="{{ url_for('request_queue') }}" class="add-form">
+    <label for="name">Request queue ticket</label>
+    <input
+      id="name"
+      name="name"
+      type="text"
+      placeholder="Type a name to request"
+      autocomplete="off"
+      required
+    />
+
+    <label for="note">Request note</label>
+    <textarea
+      id="note"
+      name="note"
+      placeholder="Optional note or service details"
+      rows="3"
+    ></textarea>
+
+    <button type="submit">Send request</button>
+  </form>
+</section>
+{% endif %}
 
 <section class="queue-list">
   <h2>Current queue</h2>
@@ -74,5 +100,32 @@
   <p class="empty">No tickets in the queue yet.</p>
   {% endif %}
 </section>
+
+{% if session.get('role') == 'viewer' %}
+<section class="queue-list">
+  <h2>Your requests</h2>
+  {% if requests %}
+  <ol class="queue-ol">
+    {% for request in requests %}
+    <li class="queue-item">
+      <div class="queue-main">
+        <div class="queue-title-row">
+          <strong>{{ request.name }}</strong>
+          <span class="queue-id">Request #{{ request.id }}</span>
+          <span class="ticket-badge {{ request.status }}">{{ request.status|capitalize }}</span>
+        </div>
+        {% if request.note %}
+        <span class="queue-note">{{ request.note }}</span>
+        {% endif %}
+        <small class="queue-time">Requested at {{ request.requested_at }}</small>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="empty">You have not made any queue requests yet.</p>
+  {% endif %}
+</section>
+{% endif %}
 {% endblock %}
 

@@ -13,7 +13,7 @@ body {
 }
 
 .app-shell.sidebar-collapsed {
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 98px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -27,10 +27,7 @@ body {
 }
 
 .sidebar.collapsed {
-  width: 72px;
-}
-
-.sidebar.collapsed {
+  width: 98px;
   padding: 0.6rem 0.6rem;
   overflow: hidden;
 }
@@ -146,6 +143,7 @@ body {
 
 .content {
   padding: 1.5rem;
+  min-width: 0;
 }
 
 .sidebar-toggle {
@@ -278,6 +276,28 @@ header p {
   background: #dc2626;
 }
 
+.dashboard-summary {
+  margin-bottom: 1rem;
+}
+
+.dashboard-user {
+  font-size: 0.98rem;
+  color: #4b5563;
+}
+
+.user-role {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.dashboard_actions,
+.dashboard-actions {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
 .dashboard-grid {
   display: grid;
   gap: 1rem;
@@ -376,6 +396,16 @@ a {
 
 .ticket-badge.high {
   color: #b91c1c;
+  background: #fee2e2;
+}
+
+.ticket-badge.pending {
+  color: #1e3a8a;
+  background: #dbeafe;
+}
+
+.ticket-badge.rejected {
+  color: #991b1b;
   background: #fee2e2;
 }
 
@@ -498,6 +528,28 @@ a {
   justify-content: space-between;
   gap: 1rem;
   align-items: center;
+}
+
+.header-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 700;
+  box-shadow: 0 12px 28px rgba(67, 56, 202, 0.08);
+}
+
+.user-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  background: #dbeafe;
 }
 
 .top-nav {

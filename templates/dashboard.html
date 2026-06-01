@@ -3,6 +3,44 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
+<section class="dashboard-summary">
+  <p class="dashboard-user">Logged in as <strong>{{ session.user }}</strong> <span class="user-role">({{ session.role|capitalize }})</span></p>
+</section>
+{% if session.get('role') == 'staff' %}
+<section class="dashboard-actions">
+  <article class="dashboard-card">
+    <h2>Pending viewer requests</h2>
+    {% if pending_requests %}
+    <ol class="queue-ol">
+      {% for request in pending_requests %}
+      <li class="queue-item">
+        <div class="queue-main">
+          <div class="queue-title-row">
+            <strong>{{ request.name }}</strong>
+            <span class="queue-id">Request #{{ request.id }}</span>
+          </div>
+          {% if request.note %}
+          <span class="queue-note">{{ request.note }}</span>
+          {% endif %}
+          <small class="queue-time">Requested by {{ request.requested_by }} at {{ request.requested_at }}</small>
+        </div>
+        <div class="queue-actions">
+          <form method="post" action="{{ url_for('accept_request', request_id=request.id) }}">
+            <button type="submit" class="action-small">Accept</button>
+          </form>
+          <form method="post" action="{{ url_for('reject_request', request_id=request.id) }}">
+            <button type="submit" class="action-small danger">Reject</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="empty">No pending requests.</p>
+    {% endif %}
+  </article>
+</section>
+{% endif %}
 <section class="dashboard-grid">
   <article class="dashboard-card">
     <h2>Queue size</h2>
