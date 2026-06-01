@@ -12,6 +12,32 @@
       <span class="sr-only">Loading...</span>
     </div>
 
+    <button id="chatLauncher" class="chat-launcher" aria-label="Open assistant" type="button">🤖</button>
+    <div id="chatPanel" class="chat-panel hidden" aria-hidden="true">
+      <div class="chat-header">
+        <span>Queue Assistant</span>
+        <button id="chatClose" class="chat-close" aria-label="Close assistant" type="button">×</button>
+      </div>
+      <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+      <form id="chatWidgetForm" class="chat-form no-loading" data-queue='{{ queue|tojson if queue is defined else "[]" }}'>
+        <textarea id="chatPrompt" name="prompt" rows="2" placeholder="Ask how the queue system works..." required></textarea>
+        <button type="submit" class="ai-button">Send</button>
+      </form>
+      <div class="ai-status" id="chatStatus"></div>
+    </div>
+
+    <!-- Confirmation modal -->
+    <div id="confirmModal" class="confirm-modal hidden" aria-hidden="true">
+      <div class="confirm-backdrop" aria-hidden="true"></div>
+      <div class="confirm-panel" role="dialog" aria-modal="true" aria-labelledby="confirmMessage">
+        <p id="confirmMessage">Are you sure?</p>
+        <div class="confirm-actions">
+          <button id="confirmCancel" class="action-small">Cancel</button>
+          <button id="confirmOk" class="action-small">Confirm</button>
+        </div>
+      </div>
+    </div>
+
     {% if session.get('user') %}
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
@@ -26,9 +52,9 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="Sidebar navigation">
-          <a href="{{ url_for('index') }}" class="sidebar-link{% if request.endpoint == 'index' %} active{% endif %}"><span class="nav-icon">⌛</span><span class="link-text">Queue</span></a>
-          <a href="{{ url_for('dashboard') }}" class="sidebar-link{% if request.endpoint == 'dashboard' %} active{% endif %}"><span class="nav-icon">📊</span><span class="link-text">Dashboard</span></a>
-          <a href="{{ url_for('display') }}" class="sidebar-link{% if request.endpoint == 'display' %} active{% endif %}"><span class="nav-icon">📺</span><span class="link-text">Display</span></a>
+          <a href="{{ url_for('index') }}" class="sidebar-link{% if request.endpoint == 'index' %} active{% endif %}" data-ajax><span class="nav-icon">⌛</span><span class="link-text">Queue</span></a>
+          <a href="{{ url_for('dashboard') }}" class="sidebar-link{% if request.endpoint == 'dashboard' %} active{% endif %}" data-ajax><span class="nav-icon">📊</span><span class="link-text">Dashboard</span></a>
+          <a href="{{ url_for('display') }}" class="sidebar-link{% if request.endpoint == 'display' %} active{% endif %}" data-ajax><span class="nav-icon">📺</span><span class="link-text">Display</span></a>
           <a href="{{ url_for('logout') }}" class="sidebar-link sidebar-link-logout"><span class="nav-icon">🚪</span><span class="link-text">Logout</span></a>
         </nav>
       </aside>
@@ -37,6 +63,7 @@
     {% endif %}
 
         <div class="page">
+        <div id="pageQueueContext" data-queue='{{ queue|tojson if queue is defined else "[]" }}' hidden></div>
         <header>
           <div class="header-top">
             <div>
@@ -66,29 +93,223 @@
     <script>
       document.addEventListener('DOMContentLoaded', function () {
         const overlay = document.getElementById('loadingOverlay');
-        document.querySelectorAll('form').forEach((form) => {
-          if (form.classList.contains('no-loading')) {
-            return;
-          }
-          form.addEventListener('submit', function () {
-            overlay.classList.add('visible');
-            overlay.setAttribute('aria-hidden', 'false');
-            form.querySelectorAll('button, input, textarea').forEach((el) => {
-              if (el.type !== 'submit') return;
-              el.disabled = true;
-              el.classList.add('loading');
+
+        function showLoading() {
+          overlay.classList.add('visible');
+          overlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function hideLoading() {
+          overlay.classList.remove('visible');
+          overlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function bindFormSubmitLoading() {
+          document.querySelectorAll('form').forEach((form) => {
+            if (form.classList.contains('no-loading') || form.dataset.loadingBound === '1') {
+              return;
+            }
+            form.dataset.loadingBound = '1';
+            form.addEventListener('submit', function (event) {
+              if (form.dataset.confirm) {
+                event.preventDefault();
+                showConfirm(form.dataset.confirm).then((ok) => {
+                  if (!ok) return;
+                  showLoading();
+                  form.querySelectorAll('button, input, textarea').forEach((el) => {
+                    if (el.type !== 'submit') return;
+                    el.disabled = true;
+                    el.classList.add('loading');
+                  });
+                  form.submit();
+                });
+                return;
+              }
+
+              showLoading();
+              form.querySelectorAll('button, input, textarea').forEach((el) => {
+                if (el.type !== 'submit') return;
+                el.disabled = true;
+                el.classList.add('loading');
+              });
             });
           });
-        });
+        }
+
+        function attachConfirmHandlers() {
+          document.querySelectorAll('[data-confirm]').forEach((element) => {
+            if (element.dataset.confirmBound === '1') {
+              return;
+            }
+            element.dataset.confirmBound = '1';
+            if (element.tagName === 'FORM') {
+              return;
+            }
+            element.addEventListener('click', function (event) {
+              // For links and buttons that are not forms, show modal
+              if (element.tagName === 'A') {
+                event.preventDefault();
+                const href = element.href;
+                showConfirm(element.dataset.confirm).then((ok) => {
+                  if (ok) window.location.href = href;
+                });
+                return;
+              }
+
+              // For other elements (buttons), allow default unless cancelled
+              showConfirm(element.dataset.confirm).then((ok) => {
+                if (!ok) event.preventDefault();
+              });
+            });
+          });
+        }
+
+        // Confirmation modal helper
+        function showConfirm(message) {
+          return new Promise((resolve) => {
+            const modal = document.getElementById('confirmModal');
+            const msg = document.getElementById('confirmMessage');
+            const okBtn = document.getElementById('confirmOk');
+            const cancelBtn = document.getElementById('confirmCancel');
+
+            if (!modal || !msg || !okBtn || !cancelBtn) {
+              // fallback to native confirm if modal missing
+              resolve(window.confirm(message));
+              return;
+            }
+
+            msg.textContent = message;
+            modal.classList.remove('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+
+            function cleanup() {
+              modal.classList.add('hidden');
+              modal.setAttribute('aria-hidden', 'true');
+              okBtn.removeEventListener('click', onOk);
+              cancelBtn.removeEventListener('click', onCancel);
+            }
+
+            function onOk() {
+              cleanup();
+              resolve(true);
+            }
+
+            function onCancel() {
+              cleanup();
+              resolve(false);
+            }
+
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+          });
+        }
+
+        function setChatOpen(open) {
+          const panel = document.getElementById('chatPanel');
+          const launcher = document.getElementById('chatLauncher');
+          if (!panel || !launcher) {
+            return;
+          }
+          panel.classList.toggle('hidden', !open);
+          panel.setAttribute('aria-hidden', String(!open));
+          launcher.classList.toggle('active', open);
+        }
+
+        function updateChatQueue() {
+          const pageContext = document.getElementById('pageQueueContext');
+          const chatForm = document.getElementById('chatWidgetForm');
+          if (pageContext && chatForm) {
+            chatForm.dataset.queue = pageContext.dataset.queue || '[]';
+          }
+        }
+
+        function initChatWidget() {
+          const form = document.getElementById('chatWidgetForm');
+          if (!form || form.dataset.chatBound === '1') {
+            return;
+          }
+          form.dataset.chatBound = '1';
+
+          const messagesEl = document.getElementById('chatMessages');
+          const statusEl = document.getElementById('chatStatus');
+          const promptEl = document.getElementById('chatPrompt');
+          const chatHistory = [];
+
+          function appendChatBubble(role, text) {
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${role}`;
+            bubble.textContent = text;
+            messagesEl.appendChild(bubble);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+          }
+
+          const launcher = document.getElementById('chatLauncher');
+          const closeButton = document.getElementById('chatClose');
+          if (launcher) {
+            launcher.addEventListener('click', () => setChatOpen(true));
+          }
+          if (closeButton) {
+            closeButton.addEventListener('click', () => setChatOpen(false));
+          }
+
+          form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const userText = promptEl.value.trim();
+            if (!userText) {
+              return;
+            }
+
+            appendChatBubble('user', userText);
+            chatHistory.push({ role: 'user', content: userText });
+            promptEl.value = '';
+            statusEl.textContent = 'Thinking...';
+            updateChatQueue();
+            const queue = JSON.parse(form.dataset.queue || '[]');
+
+            try {
+              const response = await fetch("{{ url_for('ai_chat') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  messages: chatHistory,
+                  context: { queue },
+                }),
+              });
+
+              const data = await response.json();
+              statusEl.textContent = response.ok ? '' : 'Could not get a response.';
+
+              const reply = data.reply || 'Sorry, I could not answer that right now.';
+              appendChatBubble('bot', reply);
+              chatHistory.push({ role: 'assistant', content: reply });
+            } catch (err) {
+              statusEl.textContent = '';
+              appendChatBubble('bot', 'Network or server error while requesting chatbot response.');
+            }
+          });
+        }
+
+        function initPageFeatures() {
+          bindFormSubmitLoading();
+          attachConfirmHandlers();
+          updateChatQueue();
+          initChatWidget();
+        }
+
+        initPageFeatures();
 
         const sidebar = document.getElementById('sidebar');
         const toggle = document.getElementById('sidebarToggle');
+        const appShell = document.querySelector('.app-shell');
         const collapsedKey = 'queueSidebarCollapsed';
 
         function setSidebarCollapsed(collapsed) {
           sidebar.classList.toggle('collapsed', collapsed);
           toggle.setAttribute('aria-expanded', String(!collapsed));
           localStorage.setItem(collapsedKey, collapsed ? '1' : '0');
+          if (appShell) {
+            appShell.classList.toggle('sidebar-collapsed', collapsed);
+          }
         }
 
         if (sidebar && toggle) {
@@ -101,8 +322,71 @@
             const collapsed = sidebar.classList.toggle('collapsed');
             toggle.setAttribute('aria-expanded', String(!collapsed));
             localStorage.setItem(collapsedKey, collapsed ? '1' : '0');
+            if (appShell) {
+              appShell.classList.toggle('sidebar-collapsed', collapsed);
+            }
           });
         }
+
+        function updateActiveNav(url) {
+          document.querySelectorAll('.sidebar-link[data-ajax]').forEach((link) => {
+            link.classList.toggle('active', link.href === url);
+          });
+        }
+
+        function loadPage(url, pushState = true) {
+          showLoading();
+          fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error('Network error');
+              }
+              return response.text();
+            })
+            .then((html) => {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(html, 'text/html');
+              const newPage = doc.querySelector('.page');
+              if (!newPage) {
+                window.location.href = url;
+                return;
+              }
+              const currentPage = document.querySelector('.page');
+              if (currentPage && newPage) {
+                currentPage.replaceWith(newPage);
+              }
+              document.title = doc.title || document.title;
+              if (pushState) {
+                history.pushState({ url }, '', url);
+              }
+              updateActiveNav(new URL(url, window.location.origin).href);
+              initPageFeatures();
+            })
+            .catch(() => {
+              window.location.href = url;
+            })
+            .finally(() => {
+              hideLoading();
+            });
+        }
+
+        document.querySelectorAll('.sidebar-link[data-ajax]').forEach((link) => {
+          link.addEventListener('click', function (event) {
+            event.preventDefault();
+            const url = this.href;
+            if (url === window.location.href) {
+              return;
+            }
+            loadPage(url);
+          });
+        });
+
+        window.addEventListener('popstate', function (event) {
+          const url = (event.state && event.state.url) || window.location.href;
+          if (url) {
+            loadPage(url, false);
+          }
+        });
       });
     </script>
   </body>

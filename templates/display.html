@@ -22,6 +22,17 @@
     <p id="nextId" class="display-next-id">{% if next_in_line %}#{{ next_in_line.id }}{% else %}&nbsp;{% endif %}</p>
   </div>
 
+  <div class="display-status-bar">
+    <div class="display-status-item">
+      <h3>Live updates</h3>
+      <p>Active</p>
+    </div>
+    <div class="display-status-item">
+      <h3>MQTT topic</h3>
+      <p>{{ mqtt_topic }}</p>
+    </div>
+  </div>
+
   <div class="display-queue-list">
     <h2>Queue List</h2>
     <ol id="queueList" class="display-ol">

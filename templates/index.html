@@ -14,14 +14,29 @@
       autocomplete="off"
       required
     />
+
+    <label for="note">Service note</label>
+    <textarea
+      id="note"
+      name="note"
+      placeholder="Optional note, service type, or request"
+      rows="3"
+    ></textarea>
+
+    <label for="priority">Priority</label>
+    <select id="priority" name="priority">
+      <option value="Normal">Normal</option>
+      <option value="High">High</option>
+    </select>
+
     <button type="submit">Add to queue</button>
   </form>
 
   <div class="action-buttons">
-    <form method="post" action="{{ url_for('serve') }}">
+    <form method="post" action="{{ url_for('serve') }}" data-confirm="Call the next ticket?">
       <button type="submit" class="next-button">Call next</button>
     </form>
-    <form method="post" action="{{ url_for('clear') }}">
+    <form method="post" action="{{ url_for('clear') }}" data-confirm="Clear the queue? This cannot be undone.">
       <button type="submit" class="danger">Clear queue</button>
     </form>
   </div>
@@ -34,10 +49,24 @@
     {% for item in queue %}
     <li class="queue-item">
       <div class="queue-main">
-        <strong>{{ item.name }}</strong>
-        <span class="queue-id">#{{ item.id }}</span>
+        <div class="queue-title-row">
+          <strong>{{ item.name }}</strong>
+          <span class="queue-id">#{{ item.id }}</span>
+          <span class="ticket-badge {{ 'high' if item.priority == 'High' else 'normal' }}">{{ item.priority }}</span>
+        </div>
+        {% if item.note %}
+        <span class="queue-note">{{ item.note }}</span>
+        {% endif %}
+        <small class="queue-time">Added {{ item.created_at }}</small>
       </div>
-      <small class="queue-time">Added {{ item.created_at }}</small>
+      <div class="queue-actions">
+        <form method="post" action="{{ url_for('serve_ticket', ticket_id=item.id) }}" data-confirm="Serve ticket #{{ item.id }}: {{ item.name }}?">
+          <button type="submit" class="action-small">Serve</button>
+        </form>
+        <form method="post" action="{{ url_for('remove_ticket', ticket_id=item.id) }}" data-confirm="Remove ticket #{{ item.id }}: {{ item.name }}? This cannot be undone.">
+          <button type="submit" class="action-small danger">Remove</button>
+        </form>
+      </div>
     </li>
     {% endfor %}
   </ol>

@@ -17,11 +17,14 @@ def save_queue(queue):
         json.dump(queue, f, indent=2)
 
 
-def add_to_queue(queue, name):
+def add_to_queue(queue, name, note=None, priority="Normal"):
+    next_id = max((item.get("id", 0) for item in queue), default=0) + 1
     item = {
-        "id": len(queue) + 1,
+        "id": next_id,
         "name": name,
-        "created_at": datetime.now().isoformat(timespec="seconds")
+        "note": note or "",
+        "priority": priority if priority in ("Normal", "High") else "Normal",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
     }
     queue.append(item)
     save_queue(queue)
@@ -32,6 +35,15 @@ def serve_next(queue):
     if not queue:
         return None
     item = queue.pop(0)
+    save_queue(queue)
+    return item
+
+
+def remove_from_queue(queue, ticket_id):
+    item = next((it for it in queue if it.get("id") == ticket_id), None)
+    if not item:
+        return None
+    queue.remove(item)
     save_queue(queue)
     return item
 

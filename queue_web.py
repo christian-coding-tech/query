@@ -105,6 +105,10 @@ def validate_user(username, password):
     return check_password_hash(hashed, password)
 
 
+def find_ticket(queue, ticket_id):
+    return next((item for item in queue if item.get("id") == ticket_id), None)
+
+
 def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
@@ -174,6 +178,94 @@ def build_ai_prompt(message, context):
     )
 
 
+def fallback_ai_chat(messages, context):
+    queue = context.get("queue") or []
+    now_next = queue[0] if queue else None
+    latest = messages[-1]["content"] if messages else ""
+    lower = latest.lower()
+
+    if any(k in lower for k in ("how", "help", "use", "guide", "work", "system", "explain")):
+        return (
+            "This queue system helps staff manage ticket flow. "
+            "Use the main Queue page to add a new customer, call the next ticket, and clear the line. "
+            "The Dashboard shows queue size, served totals, next ticket, and recent history. "
+            "The Display page is for public viewing of the current ticket. "
+            "If you need help with login or accounts, use the Login or Signup page."
+        )
+
+    if any(k in lower for k in ("add", "ticket", "queue", "entry")):
+        return (
+            "To add someone, enter their name on the main Queue page and submit. "
+            "The system creates a ticket with an auto ID and timestamp, then shows it in the waiting list."
+        )
+
+    if any(k in lower for k in ("serve", "next", "call", "waiting")):
+        return (
+            "Press Call next on the Dashboard or Queue page to serve the next person. "
+            "That removes the ticket from the waiting queue and stores it in served history."
+        )
+
+    if any(k in lower for k in ("clear", "reset", "empty")):
+        return (
+            "Use the Clear queue button to empty the current waiting list. "
+            "This keeps served history intact while resetting the active queue."
+        )
+
+    return (
+        "I can help explain how the queue, dashboard, display, and login features work. "
+        "Ask me anything about using the system and I’ll guide you step by step."
+    )
+
+
+def build_ai_chat_system_prompt(context):
+    queue = context.get("queue") or []
+    now_next = queue[0] if queue else None
+    queue_summary = (
+        f"Current queue size: {len(queue)}. "
+        f"Next ticket: #{now_next.get('id')} - {now_next.get('name')}.")
+    if not now_next:
+        queue_summary = f"Current queue size: {len(queue)}. No tickets are waiting right now."
+
+    return (
+        "You are a helpful assistant that guides staff through using a simple service queue web app. "
+        "Answer questions clearly and politely, focusing on how the system works, where to click, "
+        "and what each page does. Do not ask for external or private data. "
+        f"{queue_summary}"
+    )
+
+
+@app.route("/ai/chat", methods=["POST"])
+def ai_chat():
+    payload = request.get_json(silent=True) or {}
+    messages = payload.get("messages", [])
+    context = payload.get("context", {})
+
+    if not OPENAI_API_KEY:
+        reply = fallback_ai_chat(messages, context)
+        return jsonify({"mode": "fallback", "reply": reply})
+
+    try:
+        from openai import OpenAI
+
+        system_prompt = build_ai_chat_system_prompt(context)
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        resp = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "system", "content": system_prompt}] + messages,
+            temperature=0.4,
+            max_tokens=250,
+        )
+
+        text = (resp.choices[0].message.content or "").strip()
+        if not text:
+            raise RuntimeError("Empty AI response")
+        return jsonify({"mode": "openai", "reply": text})
+    except Exception as e:
+        reply = fallback_ai_chat(messages, context)
+        return jsonify({"mode": "fallback", "reply": reply, "error": str(e)}), 200
+
+
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if session.get("user"):
@@ -231,10 +323,12 @@ def index():
     queue = load_queue()
     if request.method == "POST":
         name = request.form.get("name", "").strip()
+        note = request.form.get("note", "").strip()
+        priority = request.form.get("priority", "Normal")
         if not name:
             flash("Please enter a name to add to the queue.", "warning")
         else:
-            add_to_queue(queue, name)
+            add_to_queue(queue, name, note=note, priority=priority)
             publish_queue_update(queue)
             flash(f"Added {name} to the queue.", "success")
             return redirect(url_for("index"))
@@ -255,11 +349,54 @@ def serve():
     return redirect(url_for("index"))
 
 
+@app.route("/ticket/<int:ticket_id>/serve", methods=["POST"])
+@login_required
+def serve_ticket(ticket_id):
+    queue = load_queue()
+    item = find_ticket(queue, ticket_id)
+    if item:
+        queue.remove(item)
+        save_queue(queue)
+        log_served(item)
+        flash(f"Served ticket #{ticket_id}: {item['name']}", "success")
+        publish_queue_update(queue)
+    else:
+        flash("Ticket not found.", "warning")
+    return redirect(url_for("index"))
+
+
+@app.route("/ticket/<int:ticket_id>/remove", methods=["POST"])
+@login_required
+def remove_ticket(ticket_id):
+    queue = load_queue()
+    item = find_ticket(queue, ticket_id)
+    if item:
+        queue.remove(item)
+        save_queue(queue)
+        publish_queue_update(queue)
+        flash(f"Removed ticket #{ticket_id}: {item['name']}", "info")
+    else:
+        flash("Ticket not found.", "warning")
+    return redirect(url_for("index"))
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():
     queue = load_queue()
     history = load_history()
+    wait_minutes = []
+    for item in history:
+        try:
+            created = datetime.fromisoformat(item["created_at"])
+            served = datetime.fromisoformat(item["served_at"])
+            wait_minutes.append((served - created).total_seconds() / 60)
+        except Exception:
+            continue
+
+    average_wait = f"{round(sum(wait_minutes) / len(wait_minutes), 1)} min" if wait_minutes else "N/A"
+    high_priority = sum(1 for item in queue if item.get("priority") == "High")
+
     return render_template(
         "dashboard.html",
         queue=queue,
@@ -267,6 +404,8 @@ def dashboard():
         served_count=len(history),
         next_item=queue[0] if queue else None,
         newest=queue[-1] if queue else None,
+        average_wait=average_wait,
+        high_priority=high_priority,
     )
 
 
@@ -286,7 +425,6 @@ def display():
 
 
 @app.route("/public")
-@login_required
 def public_display():
     queue = load_queue()
     return render_template(
