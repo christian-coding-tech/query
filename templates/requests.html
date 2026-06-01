@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Requests{% endblock %}
+
+{% block content %}
+<section class="dashboard-summary">
+  <p class="dashboard-user">Logged in as <strong>{{ session.user }}</strong> <span class="user-role">({{ session.role|capitalize }})</span></p>
+</section>
+
+<section class="dashboard-card">
+  <h2>Queue requests</h2>
+  {% if requests %}
+  <ol class="queue-ol">
+    {% for request in requests %}
+    <li class="queue-item">
+      <div class="queue-main">
+        <div class="queue-title-row">
+          <strong>{{ request.name }}</strong>
+          <span class="queue-id">Request #{{ request.id }}</span>
+          <span class="ticket-badge {{ request.status }}">{{ request.status|capitalize }}</span>
+        </div>
+        {% if request.note %}
+        <span class="queue-note">{{ request.note }}</span>
+        {% endif %}
+        <small class="queue-time">Requested by {{ request.requested_by }} at {{ request.requested_at }}</small>
+      </div>
+      {% if session.get('role') == 'staff' %}
+      <div class="queue-actions">
+        {% if request.status == 'pending' %}
+        <form method="post" action="{{ url_for('accept_request', request_id=request.id) }}">
+          <button type="submit" class="action-small">Approve</button>
+        </form>
+        <form method="post" action="{{ url_for('reject_request', request_id=request.id) }}">
+          <button type="submit" class="action-small danger">Reject</button>
+        </form>
+        {% else %}
+        <span class="queue-note">Handled: {{ request.status|capitalize }}</span>
+        {% endif %}
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="empty">No queue requests found.</p>
+  {% endif %}
+</section>
+{% endblock %}

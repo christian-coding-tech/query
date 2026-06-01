@@ -52,10 +52,13 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="Sidebar navigation">
+          {% if session.get('role') == 'staff' %}
           <a href="{{ url_for('index') }}" class="sidebar-link{% if request.endpoint == 'index' %} active{% endif %}" data-ajax><span class="nav-icon">⌛</span><span class="link-text">Queue</span></a>
           <a href="{{ url_for('dashboard') }}" class="sidebar-link{% if request.endpoint == 'dashboard' %} active{% endif %}" data-ajax><span class="nav-icon">📊</span><span class="link-text">Dashboard</span></a>
-          {% if session.get('role') == 'staff' %}
-          <a href="{{ url_for('create_viewer') }}" class="sidebar-link{% if request.endpoint == 'create_viewer' %} active{% endif %}" data-ajax><span class="nav-icon">👥</span><span class="link-text">Add viewer</span></a>
+          <a href="{{ url_for('requests_page') }}" class="sidebar-link{% if request.endpoint == 'requests_page' %} active{% endif %}" data-ajax><span class="nav-icon">📝</span><span class="link-text">Requests</span></a>
+          <a href="{{ url_for('manage_viewers') }}" class="sidebar-link{% if request.endpoint == 'manage_viewers' %} active{% endif %}" data-ajax><span class="nav-icon">👤</span><span class="link-text">Manage viewers</span></a>
+          {% else %}
+          <a href="{{ url_for('index') }}" class="sidebar-link{% if request.endpoint == 'index' %} active{% endif %}" data-ajax><span class="nav-icon">📝</span><span class="link-text">Request</span></a>
           {% endif %}
           <a href="{{ url_for('display') }}" class="sidebar-link{% if request.endpoint == 'display' %} active{% endif %}" data-ajax><span class="nav-icon">📺</span><span class="link-text">Display</span></a>
           <a href="{{ url_for('logout') }}" class="sidebar-link sidebar-link-logout" data-confirm="Are you sure you want to log out?"><span class="nav-icon">🚪</span><span class="link-text">Logout</span></a>

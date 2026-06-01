@@ -7,14 +7,20 @@
     "password": "scrypt:32768:8:1$puBImPPae9xzdb9m$dda35a6cc30310393bcd9b3fb1e0d6634ec04b4231a7baff5e520316e7c785aab1dccc9a5fc31fe21826dd3e3600258b359b857c902e6a4221b98c7e3f0b509d",
     "role": "staff"
   },
-  "user1": {
-    "password": "scrypt:32768:8:1$Ta6INDYce8abs4XJ$e60296a4f1d96c948765bf6996539b81d02a5095d318417c04805ce2f17553801a7ec4fe936652bc6743238425dbb38c06ef8b450edb38976fcd7bec356c70a2",
-    "role": "viewer"
-  },
   "viewer": {
     "password": "scrypt:32768:8:1$jZaNZdX52FiATfw3$8e7063c17177f2f7dae1a4bd5e656618de3f1c110fc91598c8a85174d07fb55ead9e76270ea1d46924081529356f1d9e53190e8907df5e90261468d449eabb0a",
     "role": "viewer"
   },
-  "user2": "scrypt:32768:8:1$zqZT2Wkvsa6GAQM0$43de90f425f544db15b18bcefafce5e37be0b83fb6386da1388f38175d1e0b821b8f6a93ff569e5c1a9dd37052e4ada0950eda42c412f8a30b0502080735342a",
-  "user3": "scrypt:32768:8:1$2Vf0kyhAwIb7xUh3$648251313b35ffab9c072d44258c4982e348017ea3e2f2bb3eee0987b5908ffc43f94a2ebd06077eac0251745d25a7dff50abcf905225990d5c541360ac42c2e"
+  "user2": {
+    "password": "scrypt:32768:8:1$zqZT2Wkvsa6GAQM0$43de90f425f544db15b18bcefafce5e37be0b83fb6386da1388f38175d1e0b821b8f6a93ff569e5c1a9dd37052e4ada0950eda42c412f8a30b0502080735342a",
+    "role": "staff"
+  },
+  "user3": {
+    "password": "scrypt:32768:8:1$2Vf0kyhAwIb7xUh3$648251313b35ffab9c072d44258c4982e348017ea3e2f2bb3eee0987b5908ffc43f94a2ebd06077eac0251745d25a7dff50abcf905225990d5c541360ac42c2e",
+    "role": "staff"
+  },
+  "viewer2": {
+    "password": "scrypt:32768:8:1$AgDOQqATVZidRM8x$2b1b705f9fbfe0af2f913eaa07ed264c1fe047a3abb1041ae2f3741636841da5ac124505853cabd859e67fc6120a8e9a847cf0f1154c13b1b5e610e9a1745cec",
+    "role": "viewer"
+  }
 }

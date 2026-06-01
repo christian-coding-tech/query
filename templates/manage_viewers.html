@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Viewers{% endblock %}
+
+{% block content %}
+<section class="dashboard-summary">
+  <p class="dashboard-user">Logged in as <strong>{{ session.user }}</strong> <span class="user-role">({{ session.role|capitalize }})</span></p>
+</section>
+
+<section class="dashboard-actions">
+  <article class="dashboard-card">
+    <h2>Viewer Accounts</h2>
+    {% if viewers %}
+    <ol class="queue-ol">
+      {% for username, user in viewers.items() %}
+      <li class="queue-item">
+        <div class="queue-main">
+          <div class="queue-title-row">
+            <strong>{{ username }}</strong>
+            <span class="queue-id">Role: {{ user.role|capitalize }}</span>
+          </div>
+        </div>
+        <div class="queue-actions">
+          <form method="get" action="{{ url_for('edit_viewer', username=username) }}" style="display: inline;">
+            <button type="submit" class="action-small">Edit</button>
+          </form>
+          <form method="post" action="{{ url_for('delete_viewer', username=username) }}" style="display: inline;" data-confirm="Are you sure you want to delete {{ username }}?">
+            <button type="submit" class="action-small danger">Delete</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="empty">No viewer accounts found.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="dashboard-actions" style="margin-top: 2rem;">
+  <a href="{{ url_for('create_viewer') }}" class="action-button">Create New Viewer</a>
+</section>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Viewer - {{ username }}{% endblock %}
+
+{% block content %}
+<section class="login-panel">
+  <h2>Edit Viewer account</h2>
+  <p>Update the password for <strong>{{ username }}</strong>. The username cannot be changed.</p>
+
+  <form method="post" class="form-group">
+    <div class="form-item">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" value="{{ username }}" disabled />
+      <small>This viewer’s username is fixed.</small>
+    </div>
+
+    <div class="form-item">
+      <label for="password">New password</label>
+      <input type="password" id="password" name="password" placeholder="Enter a new password" required />
+      <small>Choose a strong password for this viewer account.</small>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="action-button">Save changes</button>
+      <a href="{{ url_for('manage_viewers') }}" class="action-button secondary">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

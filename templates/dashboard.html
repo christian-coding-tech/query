@@ -39,6 +39,10 @@
     <p class="empty">No pending requests.</p>
     {% endif %}
   </article>
+  <article class="dashboard-card">
+    <h2>Viewer accounts</h2>
+    <p><a href="{{ url_for('manage_viewers') }}">Manage viewer accounts</a></p>
+  </article>
 </section>
 {% endif %}
 <section class="dashboard-grid">

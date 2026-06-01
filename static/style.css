@@ -484,7 +484,10 @@ a {
 
 .login-form input,
 .add-form input,
-.ai-form textarea {
+.ai-form textarea,
+.form-group input,
+.form-group select,
+.form-group textarea {
   width: 100%;
   padding: 0.95rem 1rem;
   border: 1px solid #d1d5db;
@@ -496,10 +499,74 @@ a {
 
 .login-form input:focus,
 .add-form input:focus,
-.ai-form textarea:focus {
+.ai-form textarea:focus,
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: #6366f1;
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+}
+
+.form-group input[disabled] {
+  opacity: 0.8;
+  background: #f8fafc;
+  color: #6b7280;
+}
+
+.form-group {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.form-item {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.form-item label {
+  font-weight: 700;
+  color: #111827;
+}
+
+.form-item small {
+  color: #6b7280;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.action-button,
+.action-button.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  padding: 0.95rem 1.25rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.action-button {
+  border: none;
+  background: #4338ca;
+  color: white;
+}
+
+.action-button.secondary {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.action-button:hover,
+.action-button.secondary:hover {
+  transform: translateY(-1px);
 }
 
 .alert {

@@ -162,7 +162,7 @@ def login_required(view):
 def staff_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
-        if session.get("role") != "staff":
+        if session.get("role") not in ("staff", "admin"):
             flash("Staff access only.", "warning")
             return redirect(url_for("index"))
         return view(*args, **kwargs)
@@ -422,6 +422,15 @@ def request_queue():
     return redirect(url_for("index"))
 
 
+@app.route("/requests")
+@login_required
+def requests_page():
+    requests = load_requests()
+    if session.get("role") == "viewer":
+        requests = [r for r in requests if r.get("requested_by") == session.get("user")]
+    return render_template("requests.html", requests=requests)
+
+
 @app.route("/serve", methods=["POST"])
 @login_required
 @staff_required
@@ -488,9 +497,61 @@ def create_viewer():
         users[username] = {"password": generate_password_hash(password), "role": "viewer"}
         save_users(users)
         flash("Viewer account created.", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("manage_viewers"))
 
     return render_template("create_viewer.html")
+
+
+@app.route("/viewer/manage", methods=["GET"])
+@login_required
+@staff_required
+def manage_viewers():
+    users = load_users()
+    viewers = {username: user for username, user in users.items() if user.get("role") == "viewer"}
+    return render_template("manage_viewers.html", viewers=viewers)
+
+
+@app.route("/viewer/<username>/edit", methods=["GET", "POST"])
+@login_required
+@staff_required
+def edit_viewer(username):
+    users = load_users()
+    user = users.get(username)
+    
+    if not user or user.get("role") != "viewer":
+        flash("Viewer not found.", "warning")
+        return redirect(url_for("manage_viewers"))
+    
+    if request.method == "POST":
+        new_password = request.form.get("password", "").strip()
+        if not new_password:
+            flash("Please enter a new password.", "warning")
+            return redirect(url_for("edit_viewer", username=username))
+        
+        user["password"] = generate_password_hash(new_password)
+        users[username] = user
+        save_users(users)
+        flash(f"Password for {username} has been updated.", "success")
+        return redirect(url_for("manage_viewers"))
+    
+    return render_template("edit_viewer.html", username=username, user=user)
+
+
+@app.route("/viewer/<username>/delete", methods=["POST"])
+@login_required
+@staff_required
+def delete_viewer(username):
+    users = load_users()
+    user = users.get(username)
+    
+    if not user or user.get("role") != "viewer":
+        flash("Viewer not found.", "warning")
+        return redirect(url_for("manage_viewers"))
+    
+    del users[username]
+    save_users(users)
+    flash(f"Viewer account {username} has been deleted.", "success")
+    return redirect(url_for("manage_viewers"))
 
 
 @app.route("/request/<int:request_id>/accept", methods=["POST"])
