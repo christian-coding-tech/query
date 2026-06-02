@@ -141,6 +141,12 @@ def stream():
     return resp
 
 
+@app.route('/favicon.ico')
+def favicon():
+    # Return an empty response for favicon requests to avoid 404 noise.
+    return "", 204
+
+
 @app.route('/_test_push')
 def _test_push():
     # Debug helper: push a test payload to subscribers when running in debug mode
@@ -469,10 +475,23 @@ def request_queue():
     name = request.form.get("name", "").strip()
     note = request.form.get("note", "").strip()
     if not name:
-        flash("Please enter a name to request.", "warning")
+        flash("Please enter a ticket number to request.", "warning")
+        return redirect(url_for("index"))
+
+    if not name.isdigit() or not (0 <= int(name) <= 9999):
+        flash("Please enter a valid ticket number between 0 and 9999.", "warning")
+        return redirect(url_for("index"))
+
+    queue = load_queue()
+    if any(item.get("name") == name for item in queue):
+        flash(f"Ticket number {name} is already in the queue.", "danger")
         return redirect(url_for("index"))
 
     requests = load_requests()
+    if any(r.get("name") == name and r.get("status") == "pending" for r in requests):
+        flash(f"Ticket number {name} has already been requested and is pending.", "warning")
+        return redirect(url_for("index"))
+
     request_id = max((r.get("id", 0) for r in requests), default=0) + 1
     requests.append(
         {

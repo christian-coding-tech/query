@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Service Queue Manager{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('favicon') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   </head>
   <body>
@@ -330,13 +331,16 @@
             pageContext.dataset.queue = JSON.stringify(queue || []);
           }
 
-          const section = document.querySelector('.queue-list');
+          const section = document.getElementById('queueListSection');
           if (!section) {
             return;
           }
 
           const isStaff = window.userRole === 'staff';
-          let html = '<h2>Current queue</h2>';
+          let html = '';
+          if (isStaff) {
+            html = '<h2>Current queue</h2>';
+          }
           if (!queue || !queue.length) {
             html += '<p class="empty">No tickets in the queue yet.</p>';
             section.innerHTML = html;

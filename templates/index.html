@@ -49,30 +49,35 @@
 {% else %}
 <section class="controls">
   <form method="post" action="{{ url_for('request_queue') }}" class="add-form">
-    <label for="name">Request queue ticket</label>
+    <label for="name">Request ticket number</label>
     <input
       id="name"
       name="name"
-      type="text"
-      placeholder="Type a name to request"
+      type="number"
+      placeholder="Enter ticket number (0-9999)"
+      min="0"
+      max="9999"
       autocomplete="off"
       required
     />
 
-    <label for="note">Request note</label>
-    <textarea
-      id="note"
-      name="note"
-      placeholder="Optional note or service details"
-      rows="3"
-    ></textarea>
+    <label for="note">Order type</label>
+    <select id="note" name="note" required>
+      <option value="" disabled selected>Select an order type</option>
+      <option value="Dine-in">Dine-in</option>
+      <option value="Takeout">Takeout</option>
+      <option value="Delivery">Delivery</option>
+      <option value="Drive-through">Drive-through</option>
+      <option value="Online">Online</option>
+    </select>
 
     <button type="submit">Send request</button>
   </form>
 </section>
 {% endif %}
 
-<section class="queue-list">
+{% if session.get('role') == 'staff' %}
+<section id="queueListSection" class="queue-list">
   <h2>Current queue</h2>
   {% if queue %}
   <ol id="queueList" class="queue-ol">
@@ -104,6 +109,7 @@
   <p id="queueEmpty" class="empty">No tickets in the queue yet.</p>
   {% endif %}
 </section>
+{% endif %}
 
 {% if session.get('role') == 'viewer' %}
 <section class="queue-list">
@@ -114,7 +120,7 @@
     <li class="queue-item">
       <div class="queue-main">
         <div class="queue-title-row">
-          <strong>{{ request.name }}</strong>
+          <strong>Ticket #{{ request.name }}</strong>
           <span class="queue-id">Request #{{ request.id }}</span>
           <span class="ticket-badge {{ request.status }}">{{ request.status|capitalize }}</span>
         </div>
