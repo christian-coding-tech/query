@@ -48,7 +48,7 @@
 <section class="dashboard-grid">
   <article class="dashboard-card">
     <h2>Queue size</h2>
-    <p>{{ queue|length }}</p>
+    <p id="dashboardQueueSize">{{ queue|length }}</p>
     <small>waiting now</small>
   </article>
 
@@ -60,14 +60,14 @@
 
   <article class="dashboard-card">
     <h2>Now next</h2>
-    <p>{{ next_item.name if next_item else 'None' }}</p>
-    <small>{{ next_item.created_at if next_item else '' }}</small>
+    <p id="dashboardNext">{{ next_item.name if next_item else 'None' }}</p>
+    <small id="dashboardNextTime">{{ next_item.created_at if next_item else '' }}</small>
   </article>
 
   <article class="dashboard-card">
     <h2>Last added</h2>
-    <p>{{ newest.name if newest else 'None' }}</p>
-    <small>{{ newest.created_at if newest else '' }}</small>
+    <p id="dashboardNewest">{{ newest.name if newest else 'None' }}</p>
+    <small id="dashboardNewestTime">{{ newest.created_at if newest else '' }}</small>
   </article>
 
   <article class="dashboard-card">
@@ -78,7 +78,7 @@
 
   <article class="dashboard-card">
     <h2>High priority</h2>
-    <p>{{ high_priority }}</p>
+    <p id="dashboardHighPriority">{{ high_priority }}</p>
     <small>tickets waiting</small>
   </article>
 </section>
@@ -111,5 +111,52 @@
   {% endif %}
 </section>
 
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+const initialDashboardQueue = {{ queue|tojson }};
+
+function updateDashboard(state) {
+  document.getElementById('dashboardQueueSize').textContent = state.length;
+  document.getElementById('dashboardNext').textContent = state[0] ? state[0].name : 'None';
+  document.getElementById('dashboardNextTime').textContent = state[0] ? state[0].created_at : '';
+  const newest = state.length ? state[state.length-1] : null;
+  document.getElementById('dashboardNewest').textContent = newest ? newest.name : 'None';
+  document.getElementById('dashboardNewestTime').textContent = newest ? newest.created_at : '';
+  document.getElementById('dashboardHighPriority').textContent = state.filter(s=>s.priority==='High').length;
+}
+
+updateDashboard(initialDashboardQueue);
+</script>
+
+{% if mqtt_ws_url %}
+<script>
+  const mqttUrl = "{{ mqtt_ws_url }}";
+  const mqttTopic = "{{ mqtt_topic }}";
+  (function(){
+    const client = mqtt.connect(mqttUrl, { reconnectPeriod: 3000 });
+    client.on('connect', () => client.subscribe(mqttTopic, { qos: 0 }));
+    client.on('message', (topic, message) => {
+      if (topic === mqttTopic) {
+        try { const payload = JSON.parse(message.toString()); updateDashboard(payload.queue || []); } catch(e){console.error(e)}
+      }
+    });
+  })();
+</script>
+{% else %}
+<script>
+  (function(){
+    const evt = new EventSource('/stream');
+    evt.onopen = () => console.info('SSE connected for dashboard');
+    evt.onmessage = (e) => {
+      try { const payload = JSON.parse(e.data); updateDashboard(payload.queue || []); console.info('dashboard SSE', payload); } catch(e){console.error(e)}
+    };
+    evt.onerror = () => console.warn('dashboard SSE error');
+  })();
+</script>
+{% endif %}
+</script>
 {% endblock %}
 

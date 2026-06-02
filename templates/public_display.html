@@ -7,68 +7,72 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   </head>
   <body>
-    <div class="public-page">
-      <section class="display-container public-only">
-        <div class="display-now-serving">
-          <h2>Now Serving</h2>
-          <p id="nowServingName" class="display-name">{{ now_serving.name if now_serving else '—' }}</p>
-          <p id="nowServingId" class="display-id">{% if now_serving %}#{{ now_serving.id }}{% else %}No one{% endif %}</p>
-        </div>
-
-        <div class="display-waiting">
-          <h2>Waiting in Queue</h2>
-          <p id="waitingCount" class="display-count">{{ waiting_count }}</p>
-          <p class="display-label">people</p>
-        </div>
-
-        <div class="display-next">
-          <h2>Next</h2>
-          <p id="nextName" class="display-next-name">{{ next_in_line.name if next_in_line else '—' }}</p>
-          <p id="nextId" class="display-next-id">{% if next_in_line %}#{{ next_in_line.id }}{% else %}&nbsp;{% endif %}</p>
-        </div>
-
-        <div class="display-queue-list">
-          <h2>Queue List</h2>
-          <ol id="queueList" class="display-ol">
-            {% if queue %}
-            {% for item in queue[:10] %}
-            <li>
-              <span class="display-number">#{{ item.id }}</span>
-              <span class="display-queue-name">{{ item.name }}</span>
-            </li>
-            {% endfor %}
-            {% if queue|length > 10 %}
-            <li class="display-more">+{{ queue|length - 10 }} more</li>
-            {% endif %}
-            {% else %}
-            <li class="empty">Queue is empty</li>
-            {% endif %}
-          </ol>
-        </div>
-      </section>
+    <div class="public-header">
+      <div>
+        <p class="public-tag">Guest View</p>
+        <h1>Live Queue Display</h1>
+        <p class="public-subtitle">Real-time ticket updates for guests and visitors.</p>
+      </div>
+      <a class="public-back" href="{{ url_for('login') }}">Back to Login</a>
     </div>
 
-    {% if mqtt_ws_url %}
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <main class="public-page">
+      <section class="public-grid">
+        <article class="public-card public-card-primary">
+          <span class="card-label">Now Serving</span>
+          <p id="nowServingId" class="public-ticket-number">{% if now_serving %}#{{ '%04d' % now_serving.id }}{% else %}—{% endif %}</p>
+          <span class="card-note">Current ticket being served</span>
+        </article>
+
+        <article class="public-card public-card-secondary">
+          <span class="card-label">Up Next</span>
+          <p id="nextId" class="public-ticket-number">{% if next_in_line %}#{{ '%04d' % next_in_line.id }}{% else %}—{% endif %}</p>
+          <span class="card-note">Next ticket in the queue</span>
+        </article>
+
+        <article class="public-card public-card-secondary">
+          <span class="card-label">Waiting</span>
+          <p id="waitingCount" class="public-ticket-number">{{ waiting_count }}</p>
+          <span class="card-note">Tickets currently waiting</span>
+        </article>
+      </section>
+
+      <section class="public-queue-list">
+        <div class="public-queue-header">
+          <h2>Upcoming Tickets</h2>
+          <span class="live-indicator">Live</span>
+        </div>
+        <ol id="queueList" class="public-list">
+          {% if queue %}
+          {% for item in queue[:10] %}
+          <li class="public-list-item">#{{ '%04d' % item.id }}</li>
+          {% endfor %}
+          {% if queue|length > 10 %}
+          <li class="public-list-item more-item">+{{ queue|length - 10 }} more</li>
+          {% endif %}
+          {% else %}
+          <li class="public-list-empty">Queue is empty</li>
+          {% endif %}
+        </ol>
+      </section>
+    </main>
+
     <script>
-    const mqttUrl = "{{ mqtt_ws_url }}";
-    const mqttTopic = "{{ mqtt_topic }}";
+    const initialQueue = {{ queue|tojson }};
 
     function renderQueue(state) {
       const nowServing = state[0] || null;
       const next = state.length > 1 ? state[1] : null;
-      document.getElementById("nowServingName").textContent = nowServing ? nowServing.name : "—";
-      document.getElementById("nowServingId").textContent = nowServing ? `#${nowServing.id}` : "No one";
+      document.getElementById("nowServingId").textContent = nowServing ? `#${String(nowServing.id).padStart(4, '0')}` : "—";
       document.getElementById("waitingCount").textContent = state.length;
-      document.getElementById("nextName").textContent = next ? next.name : "—";
-      document.getElementById("nextId").textContent = next ? `#${next.id}` : "";
+      document.getElementById("nextId").textContent = next ? `#${String(next.id).padStart(4, '0')}` : "—";
 
       const list = document.getElementById("queueList");
       list.innerHTML = "";
 
       if (!state.length) {
         const emptyItem = document.createElement("li");
-        emptyItem.className = "empty";
+        emptyItem.className = "public-list-empty";
         emptyItem.textContent = "Queue is empty";
         list.appendChild(emptyItem);
         return;
@@ -78,17 +82,27 @@
       for (let i = 0; i < limit; i += 1) {
         const item = state[i];
         const li = document.createElement("li");
-        li.innerHTML = `<span class="display-number">#${item.id}</span><span class="display-queue-name">${item.name}</span>`;
+        li.className = "public-list-item";
+        li.textContent = `#${String(item.id).padStart(4, '0')}`;
         list.appendChild(li);
       }
 
       if (state.length > 10) {
         const more = document.createElement("li");
-        more.className = "display-more";
+        more.className = "public-list-item more-item";
         more.textContent = `+${state.length - 10} more`;
         list.appendChild(more);
       }
     }
+
+    renderQueue(initialQueue);
+    </script>
+
+    {% if mqtt_ws_url %}
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script>
+    const mqttUrl = "{{ mqtt_ws_url }}";
+    const mqttTopic = "{{ mqtt_topic }}";
 
     function connectMqtt() {
       const client = mqtt.connect(mqttUrl, { reconnectPeriod: 3000 });
@@ -105,9 +119,28 @@
       });
     }
 
-    const initialQueue = {{ queue|tojson }};
-    renderQueue(initialQueue);
     connectMqtt();
+    </script>
+    {% else %}
+    <script>
+    function setupSSE() {
+      const evt = new EventSource('/stream');
+      evt.onopen = function() { console.info('SSE connected to /stream'); };
+      evt.onmessage = function(e) {
+        try {
+          const payload = JSON.parse(e.data);
+          console.info('SSE message', payload);
+          renderQueue(payload.queue || []);
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      evt.onerror = function() {
+        console.warn('SSE connection error, retrying...');
+      };
+    }
+
+    setupSSE();
     </script>
     {% endif %}
   </body>

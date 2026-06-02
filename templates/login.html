@@ -15,5 +15,13 @@
     <button type="submit">Login</button>
   </form>
   <p class="auth-link">If you do not have an account, ask a staff member to create a viewer account for you.</p>
+  
+  <hr style="margin: 20px 0;">
+  
+  <h3>Or view as guest</h3>
+  <p style="font-size: 0.9em; margin-bottom: 10px;">View the queue display in real time without logging in</p>
+  <form method="get" action="{{ url_for('public_display') }}">
+    <button type="submit" class="public-view-button">View Public Display</button>
+  </form>
 </section>
 {% endblock %}

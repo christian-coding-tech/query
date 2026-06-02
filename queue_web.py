@@ -1,9 +1,12 @@
 import json
 import os
 from datetime import datetime
+import logging
 from functools import wraps
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, Response, stream_with_context
+import threading
+import queue as std_queue
 from werkzeug.security import generate_password_hash, check_password_hash
 import paho.mqtt.client as mqtt
 
@@ -30,6 +33,11 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("QUEUE_SYSTEM_SECRET", "please-change-this-secret")
+
+# Subscribers for Server-Sent Events (SSE)
+SUBSCRIBERS = []
+SUBSCRIBERS_LOCK = threading.Lock()
+logging.basicConfig(level=logging.INFO)
 
 
 def load_history():
@@ -84,6 +92,63 @@ def publish_queue_update(queue):
         }
     )
     publish_mqtt(MQTT_TOPIC, payload)
+    # Broadcast to SSE subscribers (non-blocking)
+    with SUBSCRIBERS_LOCK:
+        for q in list(SUBSCRIBERS):
+            try:
+                q.put_nowait(payload)
+            except Exception:
+                logging.exception("Failed to push payload to SSE subscriber")
+                continue
+    return payload
+
+
+@app.route('/stream')
+def stream():
+    def gen(client_q):
+        try:
+            while True:
+                try:
+                    data = client_q.get(timeout=15)
+                    yield f"data: {data}\n\n"
+                except std_queue.Empty:
+                    # keep-alive comment to prevent proxies from closing
+                    yield ": keep-alive\n\n"
+        finally:
+            # cleanup handled outside
+            return
+
+    client_q = std_queue.Queue()
+    with SUBSCRIBERS_LOCK:
+        SUBSCRIBERS.append(client_q)
+        logging.info("SSE subscriber added (total=%d)", len(SUBSCRIBERS))
+
+    @stream_with_context
+    def stream_generator():
+        try:
+            yield from gen(client_q)
+        finally:
+            with SUBSCRIBERS_LOCK:
+                try:
+                    SUBSCRIBERS.remove(client_q)
+                except ValueError:
+                    pass
+
+    resp = Response(stream_generator(), mimetype='text/event-stream')
+    # Recommended headers for SSE
+    resp.headers['Cache-Control'] = 'no-cache'
+    resp.headers['X-Accel-Buffering'] = 'no'
+    return resp
+
+
+@app.route('/_test_push')
+def _test_push():
+    # Debug helper: push a test payload to subscribers when running in debug mode
+    if not app.debug:
+        return jsonify({"error": "Not available"}), 404
+    sample = [{"id": 1, "name": f"Test {datetime.now().isoformat(timespec='seconds')}", "created_at": datetime.now().isoformat(timespec='seconds')}]
+    publish_queue_update(sample)
+    return jsonify({"status": "ok", "sent": sample})
 
 
 def normalize_users(users):
@@ -384,11 +449,13 @@ def add_ticket():
     note = request.form.get("note", "").strip()
     priority = request.form.get("priority", "Normal")
     if not name:
-        flash("Please enter a name to add to the queue.", "warning")
+        flash("Please enter a ticket number to add to the queue.", "warning")
+    elif any(item.get("name") == name for item in queue):
+        flash(f"Ticket number {name} already exists in the queue.", "danger")
     else:
         add_to_queue(queue, name, note=note, priority=priority)
         publish_queue_update(queue)
-        flash(f"Added {name} to the queue.", "success")
+        flash(f"Added ticket #{name} to the queue.", "success")
     return redirect(url_for("index"))
 
 
@@ -708,4 +775,5 @@ def ai_suggest():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Use threaded server to support SSE connections alongside normal requests
+    app.run(debug=True, host="0.0.0.0", threaded=True)

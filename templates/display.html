@@ -39,8 +39,7 @@
       {% if queue %}
       {% for item in queue[:10] %}
       <li>
-        <span class="display-number">#{{ item.id }}</span>
-        <span class="display-queue-name">{{ item.name }}</span>
+        <span class="display-number">#{{ '%03d' % item.id }}</span>
       </li>
       {% endfor %}
       {% if queue|length > 10 %}
@@ -53,21 +52,17 @@
   </div>
 </section>
 
-{% if mqtt_ws_url %}
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <script>
-const mqttUrl = "{{ mqtt_ws_url }}";
-const mqttTopic = "{{ mqtt_topic }}";
 const initialState = {{ queue|tojson }};
 
 function renderQueue(state) {
   const nowServing = state[0] || null;
   const next = state.length > 1 ? state[1] : null;
   document.getElementById("nowServingName").textContent = nowServing ? nowServing.name : "—";
-  document.getElementById("nowServingId").textContent = nowServing ? `#${nowServing.id}` : "No one";
+  document.getElementById("nowServingId").textContent = nowServing ? `#${String(nowServing.id).padStart(3, '0')}` : "No one";
   document.getElementById("waitingCount").textContent = state.length;
   document.getElementById("nextName").textContent = next ? next.name : "—";
-  document.getElementById("nextId").textContent = next ? `#${next.id}` : "";
+  document.getElementById("nextId").textContent = next ? `#${String(next.id).padStart(3, '0')}` : "";
 
   const list = document.getElementById("queueList");
   list.innerHTML = "";
@@ -84,7 +79,7 @@ function renderQueue(state) {
   for (let i = 0; i < limit; i += 1) {
     const item = state[i];
     const li = document.createElement("li");
-    li.innerHTML = `<span class="display-number">#${item.id}</span><span class="display-queue-name">${item.name}</span>`;
+    li.innerHTML = `<span class="display-number">#${String(item.id).padStart(3, '0')}</span>`;
     list.appendChild(li);
   }
 
@@ -95,6 +90,15 @@ function renderQueue(state) {
     list.appendChild(more);
   }
 }
+
+renderQueue(initialState);
+</script>
+
+{% if mqtt_ws_url %}
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+const mqttUrl = "{{ mqtt_ws_url }}";
+const mqttTopic = "{{ mqtt_topic }}";
 
 function connectMqtt() {
   const client = mqtt.connect(mqttUrl, { reconnectPeriod: 3000 });
@@ -115,8 +119,29 @@ function connectMqtt() {
   });
 }
 
-renderQueue(initialState);
 connectMqtt();
+</script>
+{% else %}
+<script>
+function setupSSE() {
+  const evt = new EventSource("/stream");
+  evt.onopen = function() { console.info('SSE connected to /stream'); };
+  evt.onmessage = function(e) {
+    try {
+      const payload = JSON.parse(e.data);
+      console.info('SSE message', payload);
+      renderQueue(payload.queue || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  evt.onerror = function() {
+    console.warn('SSE connection lost, retrying...');
+  };
+}
+
+setupSSE();
 </script>
 {% endif %}
 {% endblock %}

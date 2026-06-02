@@ -6,23 +6,27 @@
 {% if session.get('role') == 'staff' %}
 <section class="controls">
   <form method="post" action="{{ url_for('add_ticket') }}" class="add-form">
-    <label for="name">Add ticket / customer name</label>
+    <label for="name">Add ticket number</label>
     <input
       id="name"
       name="name"
-      type="text"
-      placeholder="Type a name (e.g., John)"
+      type="number"
+      placeholder="Enter ticket number (0-9999)"
+      min="0"
+      max="9999"
       autocomplete="off"
       required
     />
 
-    <label for="note">Service note</label>
-    <textarea
-      id="note"
-      name="note"
-      placeholder="Optional note, service type, or request"
-      rows="3"
-    ></textarea>
+    <label for="note">Order type</label>
+    <select id="note" name="note" required>
+      <option value="" disabled selected>Select an order type</option>
+      <option value="Dine-in">Dine-in</option>
+      <option value="Takeout">Takeout</option>
+      <option value="Delivery">Delivery</option>
+      <option value="Drive-through">Drive-through</option>
+      <option value="Online">Online</option>
+    </select>
 
     <label for="priority">Priority</label>
     <select id="priority" name="priority">
@@ -71,7 +75,7 @@
 <section class="queue-list">
   <h2>Current queue</h2>
   {% if queue %}
-  <ol class="queue-ol">
+  <ol id="queueList" class="queue-ol">
     {% for item in queue %}
     <li class="queue-item">
       <div class="queue-main">
@@ -97,7 +101,7 @@
     {% endfor %}
   </ol>
   {% else %}
-  <p class="empty">No tickets in the queue yet.</p>
+  <p id="queueEmpty" class="empty">No tickets in the queue yet.</p>
   {% endif %}
 </section>
 
@@ -127,5 +131,77 @@
   {% endif %}
 </section>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+const initialQueue = {{ queue|tojson }};
+
+function renderIndexQueue(state) {
+  const list = document.getElementById('queueList');
+  const empty = document.getElementById('queueEmpty');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!state || state.length === 0) {
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  for (const item of state) {
+    const li = document.createElement('li');
+    li.className = 'queue-item';
+    li.innerHTML = `
+      <div class="queue-main">
+        <div class="queue-title-row">
+          <strong>${item.name}</strong>
+          <span class="queue-id">#${item.id}</span>
+          <span class="ticket-badge ${item.priority === 'High' ? 'high' : 'normal'}">${item.priority}</span>
+        </div>
+        ${item.note ? `<span class="queue-note">${item.note}</span>` : ''}
+        <small class="queue-time">Added ${item.created_at}</small>
+      </div>
+      <div class="queue-actions">
+        <form method="post" action="/ticket/${item.id}/serve" data-confirm="Serve ticket #${String(item.id).padStart(3, '0')}: ${item.name}?">
+          <button type="submit" class="action-small">Serve</button>
+        </form>
+        <form method="post" action="/ticket/${item.id}/remove" data-confirm="Remove ticket #${String(item.id).padStart(3, '0')}: ${item.name}? This cannot be undone.">
+          <button type="submit" class="action-small danger">Remove</button>
+        </form>
+      </div>`;
+    list.appendChild(li);
+  }
+}
+
+renderIndexQueue(initialQueue);
+</script>
+
+{% if mqtt_ws_url %}
+<script>
+  const mqttUrl = "{{ mqtt_ws_url }}";
+  const mqttTopic = "{{ mqtt_topic }}";
+  (function(){
+    const client = mqtt.connect(mqttUrl, { reconnectPeriod: 3000 });
+    client.on('connect', () => client.subscribe(mqttTopic, { qos: 0 }));
+    client.on('message', (topic, message) => {
+      if (topic === mqttTopic) {
+        try { const payload = JSON.parse(message.toString()); renderIndexQueue(payload.queue || []); } catch(e){console.error(e)}
+      }
+    });
+  })();
+</script>
+{% else %}
+<script>
+  (function(){
+    const evt = new EventSource('/stream');
+    evt.onopen = () => console.info('SSE connected for index');
+    evt.onmessage = (e) => {
+      try { const payload = JSON.parse(e.data); renderIndexQueue(payload.queue || []); console.info('index SSE', payload); } catch(e){console.error(e)}
+    };
+    evt.onerror = () => console.warn('index SSE error');
+  })();
+</script>
+{% endif %}
+</script>
 {% endblock %}
 

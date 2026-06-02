@@ -358,10 +358,10 @@
                 </div>
                 ${isStaff ? `
                 <div class="queue-actions">
-                  <form method="post" action="/ticket/${item.id}/serve" data-confirm="Serve ticket #${item.id}: ${escapeHtml(item.name)}?">
+                  <form method="post" action="/ticket/${item.id}/serve" data-confirm="Serve ticket #${String(item.id).padStart(3, '0')}: ${escapeHtml(item.name)}?">
                     <button type="submit" class="action-small">Serve</button>
                   </form>
-                  <form method="post" action="/ticket/${item.id}/remove" data-confirm="Remove ticket #${item.id}: ${escapeHtml(item.name)}? This cannot be undone.">
+                  <form method="post" action="/ticket/${item.id}/remove" data-confirm="Remove ticket #${String(item.id).padStart(3, '0')}: ${escapeHtml(item.name)}? This cannot be undone.">
                     <button type="submit" class="action-small danger">Remove</button>
                   </form>
                 </div>` : ''}
@@ -401,12 +401,39 @@
           });
         }
 
+        // SSE fallback when MQTT is not available
+        function connectQueueSSE() {
+          if (window.mqttConfig && window.mqttConfig.url && window.mqttConfig.topic) {
+            return; // MQTT configured, prefer MQTT
+          }
+          if (window._queueSSE) return; // already connected
+          try {
+            const evt = new EventSource('/stream');
+            window._queueSSE = evt;
+            evt.onopen = function() { console.info('SSE connected to /stream (base)'); };
+            evt.onmessage = function(e) {
+              try {
+                const payload = JSON.parse(e.data);
+                if (Array.isArray(payload.queue)) {
+                  renderQueueList(payload.queue);
+                }
+              } catch (err) {
+                console.error('SSE parse error', err);
+              }
+            };
+            evt.onerror = function() { console.warn('SSE connection error (base)'); };
+          } catch (err) {
+            console.warn('SSE setup failed', err);
+          }
+        }
+
         function initPageFeatures() {
           bindFormSubmitLoading();
           attachConfirmHandlers();
           updateChatQueue();
           initChatWidget();
           connectQueueMqtt();
+          connectQueueSSE();
         }
 
         initPageFeatures();
@@ -467,6 +494,23 @@
               const currentPage = document.querySelector('.page');
               if (currentPage && newPage) {
                 currentPage.replaceWith(newPage);
+                // Execute any inline scripts contained in the loaded page
+                try {
+                  const inlineScripts = newPage.querySelectorAll('script');
+                  inlineScripts.forEach((oldScript) => {
+                    const script = document.createElement('script');
+                    if (oldScript.src) {
+                      script.src = oldScript.src;
+                    } else {
+                      script.textContent = oldScript.textContent;
+                    }
+                    document.body.appendChild(script);
+                    // remove script after it loads/executes to keep DOM clean
+                    script.addEventListener('load', () => script.remove());
+                  });
+                } catch (err) {
+                  console.error('Failed to execute inline scripts from loaded page', err);
+                }
               }
               document.title = doc.title || document.title;
               if (pushState) {

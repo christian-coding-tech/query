@@ -6,6 +6,188 @@ body {
   min-height: 100vh;
 }
 
+.public-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+}
+
+.public-tag {
+  display: inline-flex;
+  margin: 0 0 0.75rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #e0e7ff;
+  color: #4338ca;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.public-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+}
+
+.public-subtitle {
+  margin: 0.5rem 0 0;
+  color: #4b5563;
+  font-size: 0.98rem;
+}
+
+.public-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.95rem 1.25rem;
+  background: #4338ca;
+  color: white;
+  border-radius: 16px;
+  text-decoration: none;
+  font-weight: 700;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.public-back:hover {
+  transform: translateY(-1px);
+  background: #3730a3;
+}
+
+.public-page {
+  padding: 2rem;
+  display: grid;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto 2rem;
+}
+
+.public-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.public-card {
+  padding: 2rem;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(99, 102, 241, 0.08);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 200px;
+}
+
+.public-card-primary {
+  background: linear-gradient(180deg, #4338ca 0%, #6366f1 100%);
+  color: white;
+}
+
+.public-card-secondary {
+  background: #ffffff;
+}
+
+.card-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.public-ticket-number {
+  margin: 0;
+  font-size: 4.5rem;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.public-card-primary .public-ticket-number {
+  font-size: 5.2rem;
+}
+
+.card-note {
+  color: inherit;
+  opacity: 0.75;
+  font-size: 0.98rem;
+}
+
+.public-queue-list {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 28px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  padding: 1.75rem;
+}
+
+.public-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.public-queue-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.95rem;
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+  border-radius: 999px;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.public-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.public-list-item {
+  background: #eff6ff;
+  padding: 1.05rem 1.2rem;
+  border-radius: 18px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-align: center;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.public-list-item.more-item {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.public-list-empty {
+  color: #6b7280;
+  padding: 1rem 1rem;
+  border-radius: 18px;
+  background: #f8fafc;
+  text-align: center;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: minmax(72px, 260px) minmax(0, 1fr);
@@ -233,6 +415,29 @@ header p {
   font-size: 1rem;
   transition: transform 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
   box-shadow: 0 14px 30px rgba(67, 56, 202, 0.15);
+}
+
+.public-view-button {
+  border: none;
+  background: #6b7280;
+  color: white;
+  padding: 0.95rem 1.2rem;
+  border-radius: 14px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
+  box-shadow: 0 14px 30px rgba(107, 114, 128, 0.15);
+}
+
+.public-view-button:hover {
+  transform: translateY(-1px);
+  background: #4b5563;
+  box-shadow: 0 18px 38px rgba(107, 114, 128, 0.18);
+}
+
+.public-view-button:active {
+  transform: translateY(0);
 }
 
 .add-form button:hover,
